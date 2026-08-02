@@ -7,6 +7,7 @@ import {
   listMyTrips,
   type CreateTripInput,
 } from "./api";
+import { isValidUuid } from "@/utils/routeParams";
 
 export const tripKeys = {
   all: ["trips"] as const,
@@ -23,10 +24,15 @@ export function useMyTripsQuery(enabled: boolean) {
 }
 
 export function useTripQuery(tripId: string | undefined, enabled: boolean) {
+  const resolvedId = typeof tripId === "string" ? tripId.trim() : "";
+  const canQuery = enabled && isValidUuid(resolvedId);
+
   return useQuery({
-    queryKey: tripKeys.detail(tripId ?? ""),
-    queryFn: () => getTripById(tripId!),
-    enabled: Boolean(tripId) && enabled,
+    queryKey: tripKeys.detail(canQuery ? resolvedId : ""),
+    queryFn: () => getTripById(resolvedId),
+    // Never run with missing/"undefined"/non-UUID ids.
+    enabled: canQuery,
+    retry: 1,
   });
 }
 

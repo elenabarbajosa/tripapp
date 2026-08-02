@@ -15,16 +15,19 @@ import { useDeleteTripMutation, useTripQuery } from "@/features/trips/hooks";
 import { currentUserRole } from "@/features/trips/mappers";
 import { canDeleteTrip, canManageTripSettings, roleLabel } from "@/features/trips/permissions";
 import { formatDateRange } from "@/utils/date";
+import { resolveRouteParam } from "@/utils/routeParams";
 import { styles } from "./TripSettingsScreen.styles";
 
 export function TripSettingsScreen() {
   const router = useRouter();
-  const { tripId } = useLocalSearchParams<{ tripId: string }>();
-  const { user, isAuthenticated } = useAuth();
+  const params = useLocalSearchParams<{ tripId?: string | string[] }>();
+  const tripId = resolveRouteParam(params.tripId);
+  const { user, isAuthenticated, isInitializing } = useAuth();
   const { isPreviewActive } = usePreview();
   const deleteTripMutation = useDeleteTripMutation();
 
-  const shouldLoad = isAuthenticated && !isPreviewActive && Boolean(tripId);
+  const shouldLoad =
+    !isInitializing && isAuthenticated && !isPreviewActive && Boolean(tripId);
   const tripQuery = useTripQuery(tripId, shouldLoad);
   const trip = isPreviewActive ? mockUpcomingTrip : tripQuery.data ?? null;
   const role = trip ? currentUserRole(trip, user?.id) : null;

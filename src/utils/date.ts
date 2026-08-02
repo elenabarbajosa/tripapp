@@ -63,6 +63,34 @@ export function formatCountdown(startDate: string, today?: string): string {
   return "In progress";
 }
 
+/** Formats an invitation expiry timestamp for list and detail UI. */
+export function formatInvitationExpiry(expiresAt: string, now: Date = new Date()): string {
+  const expires = new Date(expiresAt);
+  if (Number.isNaN(expires.getTime())) {
+    return "Expiration unknown";
+  }
+
+  const remainingMs = expires.getTime() - now.getTime();
+  const formatted = expires.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  if (remainingMs <= 0) {
+    return `Expired ${formatted}`;
+  }
+
+  const remainingDays = Math.ceil(remainingMs / DAY_MS);
+  if (remainingDays <= 1) {
+    return `Expires ${formatted} (soon)`;
+  }
+  if (remainingDays <= 14) {
+    return `Expires ${formatted} (${remainingDays} days)`;
+  }
+  return `Expires ${formatted}`;
+}
+
 export function formatTimeLabel(time: string): string {
   const [hoursRaw, minutesRaw] = time.split(":");
   const hours = Number(hoursRaw);

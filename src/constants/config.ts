@@ -14,6 +14,7 @@ export const appConfig = {
   googleWebClientId: envResult.values.googleWebClientId,
   googleIosClientId: envResult.values.googleIosClientId,
   googleAndroidClientId: envResult.values.googleAndroidClientId,
+  invitationBaseUrl: envResult.values.invitationBaseUrl,
   scheme: "tripapp",
   isDevelopment: envResult.values.appEnv === "development",
 } as const;

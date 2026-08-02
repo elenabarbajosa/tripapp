@@ -38,6 +38,11 @@ export const styles = StyleSheet.create({
   invitationCard: {
     gap: spacing.md,
   },
+  invitationBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
   invitationTitle: {
     ...typography.headingSmall,
   },
@@ -51,5 +56,9 @@ export const styles = StyleSheet.create({
   },
   invitationAction: {
     flex: 1,
+  },
+  actionError: {
+    ...typography.bodySmall,
+    color: colors.error,
   },
 });

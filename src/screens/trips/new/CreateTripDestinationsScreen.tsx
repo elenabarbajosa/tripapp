@@ -221,6 +221,7 @@ export function CreateTripDestinationsScreen() {
                     <DateField
                       label="Departure date"
                       value={value}
+                      // Arrival ≤ departure ≤ trip end — never use arrival as maximumDate.
                       minimumDate={arrivalDate}
                       maximumDate={endDate}
                       onChangeISO={(iso) => {

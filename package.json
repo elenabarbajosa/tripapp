@@ -29,6 +29,7 @@
     "countries-list": "^3.4.1",
     "expo": "~57.0.9",
     "expo-apple-authentication": "~57.0.1",
+    "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.8",
     "expo-crypto": "~57.0.1",
     "expo-dev-client": "~57.0.10",

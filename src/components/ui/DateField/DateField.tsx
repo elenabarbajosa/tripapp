@@ -99,14 +99,7 @@ export function DateField({
 
   const confirmPicker = () => {
     const iso = pickerDateToISODate(pendingDate);
-    if (minimumDate && iso < minimumDate) {
-      setLocalError(`Date must be on or after ${formatLocalDisplayDate(minimumDate)}`);
-      return;
-    }
-    if (maximumDate && iso > maximumDate) {
-      setLocalError(`Date must be on or before ${formatLocalDisplayDate(maximumDate)}`);
-      return;
-    }
+    // Native picker already clamps to min/max. Commit and let form Zod messages win.
     setLocalError(null);
     onChangeISO(iso);
     setDraftText(null);
@@ -120,14 +113,7 @@ export function DateField({
         setLocalError("Enter a date");
         return;
       }
-      if (minimumDate && iso < minimumDate) {
-        setLocalError(`Date must be on or after ${formatLocalDisplayDate(minimumDate)}`);
-        return;
-      }
-      if (maximumDate && iso > maximumDate) {
-        setLocalError(`Date must be on or before ${formatLocalDisplayDate(maximumDate)}`);
-        return;
-      }
+      // Do not invent field-bound copy here — destination/basics schemas own those messages.
       setLocalError(null);
       onChangeISO(iso);
       setDraftText(null);
@@ -191,18 +177,9 @@ export function DateField({
           minimumDate={minimumPickerDate}
           maximumDate={maximumPickerDate}
           onValueChange={(_event, selectedDate) => {
+            // Native dialog only fires after confirmation.
             setPendingDate(selectedDate);
             const iso = pickerDateToISODate(selectedDate);
-            if (minimumDate && iso < minimumDate) {
-              setLocalError(`Date must be on or after ${formatLocalDisplayDate(minimumDate)}`);
-              setShowPicker(false);
-              return;
-            }
-            if (maximumDate && iso > maximumDate) {
-              setLocalError(`Date must be on or before ${formatLocalDisplayDate(maximumDate)}`);
-              setShowPicker(false);
-              return;
-            }
             setLocalError(null);
             onChangeISO(iso);
             setDraftText(null);

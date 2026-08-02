@@ -9,13 +9,27 @@ import type {
 import type { TripDestination, TripMember, TripSummary } from "@/types/models";
 import { resolveTripPhase } from "@/utils/date";
 
-export type TripMemberWithProfile = TripMemberRow & {
+export type TripMemberRowWithProfile = TripMemberRow & {
   profiles: ProfileRow | null;
 };
 
 export type TripWithRelations = TripRow & {
   trip_destinations: TripDestinationRow[] | null;
-  trip_members: TripMemberWithProfile[] | null;
+  trip_members: TripMemberRowWithProfile[] | null;
+};
+
+export type TripMemberRpcRow = {
+  member_id: string;
+  trip_id: string;
+  user_id: string;
+  role: TripMemberRole;
+  status: string;
+  display_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  preferred_currency: string;
+  member_created_at: string;
+  member_updated_at: string;
 };
 
 export function mapTripDestination(row: TripDestinationRow): TripDestination {
@@ -33,7 +47,7 @@ export function mapTripDestination(row: TripDestinationRow): TripDestination {
   };
 }
 
-export function mapTripMember(row: TripMemberWithProfile): TripMember | null {
+export function mapTripMember(row: TripMemberRowWithProfile): TripMember | null {
   if (!row.profiles) {
     return null;
   }
@@ -43,6 +57,23 @@ export function mapTripMember(row: TripMemberWithProfile): TripMember | null {
     role: row.role,
     profile: mapProfileRow(row.profiles),
   };
+}
+
+export function mapTripMembersFromRpc(rows: TripMemberRpcRow[]): TripMember[] {
+  return rows
+    .filter((row) => row.status === "accepted")
+    .map((row) => ({
+      id: row.member_id,
+      role: row.role,
+      profile: {
+        id: row.user_id,
+        displayName:
+          row.display_name?.trim() || row.email?.split("@")[0] || "Traveller",
+        email: row.email ?? "",
+        avatarUrl: row.avatar_url,
+        preferredCurrency: row.preferred_currency || "EUR",
+      },
+    }));
 }
 
 export function mapTripSummary(row: TripWithRelations, today?: string): TripSummary {

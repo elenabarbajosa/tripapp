@@ -143,8 +143,73 @@ describe("tripSchemas", () => {
       }),
     ).toEqual({
       arrivalDate: "2026-09-15",
-      departureDate: "2026-09-24",
+      departureDate: "2026-09-15",
     });
+  });
+
+  it("uses required destination date validation messages", () => {
+    const arrivalOutside = createTripDestinationsSchema.safeParse({
+      tripStartDate: "2026-08-02",
+      tripEndDate: "2026-08-10",
+      destinations: [
+        {
+          id: "1",
+          city: "Madrid",
+          country: "Spain",
+          countryCode: "ES",
+          currencyCode: "EUR",
+          arrivalDate: "2026-08-11",
+          departureDate: "2026-08-11",
+        },
+      ],
+    });
+    expect(arrivalOutside.success).toBe(false);
+    if (!arrivalOutside.success) {
+      expect(arrivalOutside.error.issues.some((i) => i.message === "Arrival date must be within the trip dates.")).toBe(
+        true,
+      );
+    }
+
+    const departureBeforeArrival = createTripDestinationsSchema.safeParse({
+      tripStartDate: "2026-08-02",
+      tripEndDate: "2026-08-10",
+      destinations: [
+        {
+          id: "1",
+          city: "Madrid",
+          country: "Spain",
+          countryCode: "ES",
+          currencyCode: "EUR",
+          arrivalDate: "2026-08-07",
+          departureDate: "2026-08-03",
+        },
+      ],
+    });
+    expect(departureBeforeArrival.success).toBe(false);
+    if (!departureBeforeArrival.success) {
+      expect(
+        departureBeforeArrival.error.issues.some(
+          (i) => i.message === "Departure date must be on or after the arrival date.",
+        ),
+      ).toBe(true);
+    }
+
+    const validSameDay = createTripDestinationsSchema.safeParse({
+      tripStartDate: "2026-08-02",
+      tripEndDate: "2026-08-10",
+      destinations: [
+        {
+          id: "1",
+          city: "Madrid",
+          country: "Spain",
+          countryCode: "ES",
+          currencyCode: "EUR",
+          arrivalDate: "2026-08-05",
+          departureDate: "2026-08-05",
+        },
+      ],
+    });
+    expect(validSameDay.success).toBe(true);
   });
 
   it("does not accept latitude or longitude fields in destination forms", () => {

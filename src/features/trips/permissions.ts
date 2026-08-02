@@ -24,7 +24,46 @@ export function canChangeMemberRoles(role: MemberRole | null | undefined): boole
   return role === "owner";
 }
 
+/** Alias for {@link canChangeMemberRoles}. */
+export function canManageMemberRoles(role: MemberRole | null | undefined): boolean {
+  return canChangeMemberRoles(role);
+}
+
 export function canRemoveMembers(role: MemberRole | null | undefined): boolean {
+  return role === "owner";
+}
+
+/**
+ * Whether the acting user may remove a specific member.
+ * Owners cannot remove themselves or another owner.
+ */
+export function canRemoveMember(
+  role: MemberRole | null | undefined,
+  targetRole: MemberRole,
+  isSelf: boolean,
+): boolean {
+  if (role !== "owner") {
+    return false;
+  }
+  if (isSelf) {
+    return false;
+  }
+  if (targetRole === "owner") {
+    return false;
+  }
+  return true;
+}
+
+export function canTransferOwnership(role: MemberRole | null | undefined): boolean {
+  return role === "owner";
+}
+
+/** Non-owners may leave; owners must transfer first. */
+export function canLeaveTrip(role: MemberRole | null | undefined): boolean {
+  return role === "editor" || role === "viewer";
+}
+
+export function canRevokeInvitation(role: MemberRole | null | undefined): boolean {
   return role === "owner";
 }
 

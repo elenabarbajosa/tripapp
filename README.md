@@ -6,12 +6,12 @@ Collaborative travel planning for solo travellers, couples, families, and groups
 
 ## Phase status
 
-**Phase 3A UX polish:** Create-trip wizard now uses native date pickers, searchable countries, automatic currency, and a four-step flow. Invitations still deferred to Phase 3B.
+**Phase 3B (current):** Trip invitations, share links, deep-link accept/decline, member roles, removals, leave trip, and ownership transfer.
 
-**Still upcoming**
+**Still upcoming (do not start yet)**
 
-- **Phase 3B:** Invitation records, emails, share links, deep-link accept, role-change UI, member removal
-- **Later:** Itinerary, bookings, expenses, voting, maps, ads/paywalls
+- Activities, bookings, flights, expenses, packing lists, ideas, voting, maps
+- Ads, paywalls, subscriptions, social features
 
 ## Stack
 
@@ -24,6 +24,7 @@ Collaborative travel planning for solo travellers, couples, families, and groups
 | Server state | TanStack React Query |
 | Session storage | LargeSecureStore (SecureStore key + encrypted AsyncStorage) |
 | Forms | React Hook Form + Zod |
+| Email | Supabase Edge Function + Resend (optional) |
 
 ## Environment variables
 
@@ -39,113 +40,178 @@ EXPO_PUBLIC_APP_ENV=development
 EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=
+
+# Optional web/deep-link base for invites (falls back to tripapp://invite/{token})
+EXPO_PUBLIC_INVITATION_BASE_URL=
+
+# Edge Function secrets only (never EXPO_PUBLIC_):
+# RESEND_API_KEY=
+# INVITATION_FROM_EMAIL=
 ```
 
-Never commit `.env` or service-role keys. Never put Google/Apple client **secrets** in the app.
+Never commit `.env` or service-role keys. Never put Google/Apple client **secrets** or Resend keys in the app.
 
-## Phase 3A — Trips foundation
+## Apply migrations
 
-### Apply migrations
+Run in order:
 
-1. `supabase/migrations/20260802010000_create_trips.sql` (tables + original RPC)
-2. `supabase/migrations/20260802020000_destination_currency.sql` (destination `currency_code` / `country_code` + updated `create_trip`)
+1. `20260802000000_create_profiles.sql`
+2. `20260802010000_create_trips.sql`
+3. `20260802020000_destination_currency.sql`
+4. `20260802030000_trip_invitations.sql` ← Phase 3B invitations
+5. `20260802040000_fix_trip_members_access.sql` ← Group member load / RLS recursion fix
 
-**Option A — Supabase SQL Editor**
+**Option A — Supabase SQL Editor:** run each file in order.
 
-1. Open your Supabase project → **SQL Editor**.
-2. Run each migration file in order (after profiles).
-
-**Option B — Supabase CLI**
+**Option B — CLI:**
 
 ```bash
 npx supabase db push
 ```
 
-### Create-trip wizard (4 steps)
+If CLI login is unavailable, paste `20260802040000_fix_trip_members_access.sql` into the SQL Editor after the invitations migration.
 
-1. **Basics** — name, start/end dates (calendar + DD/MM/YYYY typing), optional cover URL  
-2. **Destinations** — city, searchable country, arrival/departure dates  
-3. **Travellers** — solo or invite later (invitations in 3B)  
-4. **Review** — summary + create
+### Deploy invitation email Edge Function (optional)
 
-There is **no** separate currency step. Latitude/longitude are not shown; columns stay nullable for later Geoapify geocoding.
+```bash
+npx supabase functions deploy send-invitation-email
+npx supabase secrets set RESEND_API_KEY=... INVITATION_FROM_EMAIL="TripApp <invites@yourdomain.com>"
+```
 
-### Date picker architecture
+If Resend is not configured, invitation **creation still works**. The app shows a copy/share link and a friendly note that email delivery is unavailable.
 
-- Component: `DateField` using `@expo/ui/community/datetime-picker`
-- Android: native dialog; iOS: inline calendar in a modal
-- Accent colour: theme `colors.primary`
-- Form + DB store **date-only** `YYYY-MM-DD`
-- Display (English UI): **DD/MM/YYYY**
-- Conversions use **local calendar parts** (not UTC midnight) so timezone/DST cannot shift the selected day
+## Create-trip (Phase 3A + corrections)
 
-### Country + currency
+### Wizard (4 steps)
 
-- Dataset: static `countries-list` (no network)
-- Search: name, native name, alpha-2, alpha-3, aliases — trimmed, case-insensitive, diacritic-insensitive
-- Selecting a country sets `country_code` and primary `currency_code`
-- Single-country trip → `trips.currency` = that currency  
-- Multi-country trip → each destination keeps its currency; `trips.currency` = **first destination** currency (change later in Trip Settings)
-- Profile `preferred_currency` is stored as `trips.home_currency` only — it does not overwrite trip currency
+1. Basics — name, start/end dates, optional cover URL  
+2. Destinations — city, searchable country, arrival/departure  
+3. Travellers — solo or invite later  
+4. Review — create
 
-### Database objects created
+### Destination date rules
+
+```text
+tripStartDate <= arrivalDate <= departureDate <= tripEndDate
+```
+
+Required validation messages:
+
+- `Arrival date must be within the trip dates.`
+- `Departure date must be on or after the arrival date.`
+- `Departure date must be on or before the trip end date.`
+
+### Calendar (`DateField`)
+
+- Manual `DD/MM/YYYY` typing + ISO `YYYY-MM-DD` storage (local calendar parts, no UTC day-shift)
+- **iOS:** app-controlled sheet with `@expo/ui/community/datetime-picker` (`mode="date"`, `display="inline"`), Cancel / Done, pending selection until Done
+- **Android:** native date dialog; commit on confirm only
+- Accent: theme `colors.primary` (`#2563EB`)
+
+### Additional destination defaults
+
+When adding another stop:
+
+- New arrival = previous stop departure  
+- New departure = previous stop departure (same-day handoff is valid)  
+- Values clamped inside overall trip dates  
+- Reordering preserves selected dates; edits are not silently overwritten
+
+### After successful create
+
+1. Confirm trip ID from `create_trip`  
+2. Invalidate Home trip queries  
+3. Clear draft only after success  
+4. `router.replace("/(main)/home")` (wizard removed from history)  
+5. On failure: stay on Review, preserve values, show one inline error (no duplicate Alert)
+
+## Phase 3B — Invitations & members
+
+### Schema
 
 | Object | Purpose |
 | --- | --- |
-| `trip_member_role` enum | `owner`, `editor`, `viewer` |
-| `trips` | Trip header (`currency` = primary/base currency) |
-| `trip_destinations` | Ordered destinations + `country_code` + `currency_code` |
-| `trip_days` | One row per calendar day in the trip range |
-| `trip_members` | Accepted membership + role (`accepted` / `left`) |
+| `trip_invitation_status` | `pending`, `accepted`, `declined`, `revoked`, `expired` |
+| `trip_invitations` | Email + share-link invites; stores **token hash only** |
 
-### RLS helpers & RPC
+### Security model
 
-| Function | Role |
+- Raw invite tokens are generated server-side and returned **once**; only SHA-256 hex hashes are stored
+- Email invitations normalize email (trim + lowercase) and require case-insensitive match on accept/decline
+- Share links omit `invited_email`
+- Only pending, non-expired invitations can be accepted
+- Membership changes go through SECURITY DEFINER RPCs (no client INSERT into `trip_members`)
+- Exactly one owner; transfer demotes previous owner to editor
+- Owner cannot leave or remove themselves without transferring first
+
+### RPCs
+
+| RPC | Who | Purpose |
+| --- | --- | --- |
+| `create_trip_invitation` | Owner | Email invite; returns raw token once |
+| `create_trip_share_link` | Owner | Share invite; returns raw token once |
+| `get_trip_invitation_preview` | Anon + auth | Safe preview by raw token |
+| `accept_trip_invitation` / `_by_id` | Auth | Accept → membership |
+| `decline_trip_invitation` / `_by_id` | Auth | Decline pending |
+| `revoke_trip_invitation` | Owner | Revoke pending |
+| `update_trip_member_role` | Owner | editor ↔ viewer |
+| `remove_trip_member` | Owner | Mark member `left` |
+| `leave_trip` | Editor/viewer | Leave trip |
+| `transfer_trip_ownership` | Owner | Atomic ownership transfer |
+| `list_my_pending_invitations` | Auth | Home pending email invites |
+
+### RLS (`trip_invitations`)
+
+- Owners: select invitations for their trips  
+- Invitees: select pending invites matching their email  
+- No client insert/update/delete — mutations via RPCs only  
+- Token lookup for share links uses `get_trip_invitation_preview`, not broad table access
+
+### App surfaces
+
+| Surface | Behaviour |
 | --- | --- |
-| `is_accepted_trip_member(trip_id)` | Membership gate used by RLS |
-| `get_trip_role(trip_id)` | Current user's role |
-| `is_trip_owner(trip_id)` | Owner check |
-| `can_edit_trip(trip_id)` | Owner or editor |
-| `create_trip(...)` | Atomic create: trip + owner + destinations + days; trip currency from first destination |
+| Home | Live pending invitations (Accept / Decline); Preview keeps mock isolation |
+| Group | Members, roles, invite, revoke, remove, transfer, leave |
+| Invite traveller | Email + share-link modes; copy / native share |
+| `app/invite/[token]` | Deep-link preview; auth resume via pending token storage |
 
-### Manual test plan (create-trip UX)
+Deep link scheme: `tripapp://invite/{token}` (or `EXPO_PUBLIC_INVITATION_BASE_URL`).
 
-1. **Spain solo** — pick Spain → EUR shown → calendar dates → create → Overview  
-2. **US + Canada** — USD then CAD on destinations; Review shows primary USD  
-3. **Manual dates** — type `12/09/2026`; try invalid `31/02/2026`; end before start blocked  
-4. **Country search** — `sp`, `ES`, `united`  
-5. **Same-day transition** — destination A ends on day X, B starts on day X  
-6. Home/Overview still load for authenticated trips  
-7. Expo Go still starts (Google remains lazy / unavailable)
+### Permission helpers
 
-### RLS policies (summary)
+`canInviteMembers`, `canManageMemberRoles`, `canRemoveMember`, `canTransferOwnership`, `canLeaveTrip`, `canRevokeInvitation` — UI only; RLS/RPCs are the real security layer.
 
-- **trips:** members select; creator insert; owner update/delete
-- **trip_destinations / trip_days:** members select; owners/editors write
-- **trip_members:** members select; owner update (no direct insert/delete in 3A — create via RPC)
-- **profiles:** existing own-profile policies + `profiles_select_trip_co_members` for fellow travellers
+## Manual test plan
 
-### App behaviour
+### Create trip
 
-- Authenticated Home loads real trips via React Query; Preview keeps mock Midwest data + mock invitations UI.
-- Create-trip wizard: Basics → Destinations → Travellers → Review (4 steps).
-- Group screen lists accepted members + roles (invite UI disabled until 3B).
-- Overview shows live trip header; itinerary/budget/votes extras stay mock-only in Preview.
-- Trip settings shows live basics; owners can delete a trip.
+1. Arrival `02/08/2026`, departure `03/08/2026` → valid  
+2. Open iOS calendar → change month → tap day → Done commits; Cancel keeps prior value  
+3. Add destination → both dates default to previous departure  
+4. Create → lands on Home with the new trip; Back does not reopen Review  
 
-## Authentication (Phase 2)
+### Email invitation
 
-### Email
+1. Account A creates a trip and invites Account B as editor  
+2. Account B sees invitation on Home → Accept  
+3. Trip appears for B; Group shows both members  
 
-Always available as a fallback.
+### Share invitation
 
-### Google (native ID token)
+1. Owner generates viewer link → copy/share  
+2. Another account opens `tripapp://invite/...` → Accept → joins as viewer  
 
-Requires a **development build** (not Expo Go). Enable **Skip nonce check** for Google in Supabase.
+### Roles / ownership / leave
 
-### Apple (native ID token)
+1. Owner changes viewer → editor; removes a member  
+2. Editor/viewer cannot manage members  
+3. Owner transfers ownership → exactly one owner; previous becomes editor  
+4. Viewer/editor can leave; owner is blocked until transfer  
 
-Official button on iOS when available. Apple Developer Program setup still required for production.
+### Invitation states
+
+Decline, revoke, expire, email mismatch, already accepted / already member.
 
 ## Quality checks
 
@@ -164,6 +230,13 @@ Colocated `*.styles.ts`, theme tokens only, no static inline styles, thin `app/`
 ## Security warnings
 
 - Never commit `.env`.
-- Never ship service-role keys or OAuth client secrets in the app.
-- Do not log ID tokens, access tokens, authorization codes, or nonces.
+- Never ship service-role keys, Resend keys, or OAuth client secrets in the app.
+- Do not log invitation tokens, auth tokens, passwords, or full personal data payloads.
 - Trip access is enforced with Postgres RLS — do not rely on client checks alone.
+
+## Known limitations
+
+- Invitation email requires Resend secrets; without them, copy/share still works  
+- Share-link Home cards are not listed (email-matched only); open the link to accept  
+- Expired invitations are marked lazily on read/mutation  
+- Preview mode continues to use mock invitations only  

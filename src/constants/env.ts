@@ -7,6 +7,8 @@ export interface PublicEnv {
   googleWebClientId: string;
   googleIosClientId: string;
   googleAndroidClientId: string;
+  /** Optional deep-link / web base for invite URLs (e.g. https://app.example.com/invite). */
+  invitationBaseUrl: string;
 }
 
 export interface EnvValidationResult {
@@ -42,6 +44,7 @@ export function validatePublicEnv(
   const googleWebClientId = (env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "").trim();
   const googleIosClientId = (env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "").trim();
   const googleAndroidClientId = (env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? "").trim();
+  const invitationBaseUrl = (env.EXPO_PUBLIC_INVITATION_BASE_URL ?? "").trim();
   const appEnv = resolveAppEnv(env.EXPO_PUBLIC_APP_ENV);
 
   const missing = REQUIRED_SUPABASE_VARS.filter((key) => {
@@ -61,6 +64,7 @@ export function validatePublicEnv(
       googleWebClientId,
       googleIosClientId,
       googleAndroidClientId,
+      invitationBaseUrl,
     },
     message: isValid
       ? "Public Supabase environment variables are configured."

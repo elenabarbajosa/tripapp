@@ -1,6 +1,7 @@
+import { useCallback, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import { TripCard } from "@/components/TripCard/TripCard";
 import { AppButton } from "@/components/ui/AppButton/AppButton";
@@ -17,17 +18,55 @@ import {
   mockUpcomingTrip,
 } from "@/data/mock";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { mapInvitationError } from "@/features/invitations/errors";
+import {
+  useAcceptInvitationByIdMutation,
+  useDeclineInvitationByIdMutation,
+  useMyPendingInvitationsQuery,
+} from "@/features/invitations/hooks";
+import { useResumePendingInvite } from "@/features/invitations/useResumePendingInvite";
 import { usePreview } from "@/features/preview/PreviewProvider";
 import { partitionTrips } from "@/features/trips/api";
 import { useMyTripsQuery } from "@/features/trips/hooks";
+import { roleLabel } from "@/features/trips/permissions";
+import type { MemberRole } from "@/types/models";
+import { formatInvitationExpiry } from "@/utils/date";
 import { styles } from "./HomeScreen.styles";
+
+interface HomeInvitationItem {
+  id: string;
+  tripId: string;
+  tripName: string;
+  inviterDisplayName: string;
+  destinationSummary: string;
+  intendedRole: Exclude<MemberRole, "owner">;
+  expiresAt: string;
+  interactive: boolean;
+}
 
 export function HomeScreen() {
   const router = useRouter();
   const { profile, isAuthenticated } = useAuth();
   const { isPreviewActive } = usePreview();
   const shouldLoadTrips = isAuthenticated && !isPreviewActive;
+  const shouldLoadInvitations = isAuthenticated && !isPreviewActive;
   const tripsQuery = useMyTripsQuery(shouldLoadTrips);
+  const invitationsQuery = useMyPendingInvitationsQuery(shouldLoadInvitations);
+  const { refetch: refetchInvitations } = invitationsQuery;
+  const acceptMutation = useAcceptInvitationByIdMutation();
+  const declineMutation = useDeclineInvitationByIdMutation();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+
+  useResumePendingInvite(isAuthenticated && !isPreviewActive);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (shouldLoadInvitations) {
+        void refetchInvitations();
+      }
+    }, [refetchInvitations, shouldLoadInvitations]),
+  );
 
   const greetingName =
     (isAuthenticated && profile?.displayName) ||
@@ -41,10 +80,71 @@ export function HomeScreen() {
   const liveTrips = tripsQuery.data ? partitionTrips(tripsQuery.data) : null;
   const upcoming = isPreviewActive ? previewUpcoming : (liveTrips?.upcoming ?? []);
   const previous = isPreviewActive ? previewPrevious : (liveTrips?.previous ?? []);
-  const showInvitations = isPreviewActive && mockInvitations.length > 0;
+
+  const liveInvitations: HomeInvitationItem[] = (invitationsQuery.data ?? []).map((invitation) => ({
+    id: invitation.id,
+    tripId: invitation.tripId,
+    tripName: invitation.tripName,
+    inviterDisplayName: invitation.inviterDisplayName,
+    destinationSummary: invitation.destinationSummary,
+    intendedRole: invitation.intendedRole,
+    expiresAt: invitation.expiresAt,
+    interactive: true,
+  }));
+
+  const previewInvitationItems: HomeInvitationItem[] = mockInvitations.map((invitation) => ({
+    id: invitation.id,
+    tripId: invitation.tripId,
+    tripName: invitation.tripName,
+    inviterDisplayName: invitation.inviterName,
+    destinationSummary: invitation.destinationSummary,
+    intendedRole: invitation.intendedRole,
+    expiresAt: invitation.expiresAt,
+    interactive: false,
+  }));
+
+  const invitations = isPreviewActive ? previewInvitationItems : liveInvitations;
+  const hasInvitations = invitations.length > 0;
+
   const isEmpty =
-    shouldLoadTrips && !tripsQuery.isLoading && !tripsQuery.isError && upcoming.length === 0 && previous.length === 0;
+    shouldLoadTrips &&
+    !tripsQuery.isLoading &&
+    !tripsQuery.isError &&
+    upcoming.length === 0 &&
+    previous.length === 0 &&
+    !hasInvitations;
   const showPreviewOrLoaded = isPreviewActive || (!tripsQuery.isLoading && !tripsQuery.isError);
+
+  const onAccept = async (invitation: HomeInvitationItem) => {
+    if (!invitation.interactive) {
+      return;
+    }
+    setActionError(null);
+    setPendingActionId(invitation.id);
+    try {
+      const tripId = await acceptMutation.mutateAsync(invitation.id);
+      router.push(`/trips/${tripId}/overview`);
+    } catch (error) {
+      setActionError(mapInvitationError(error));
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const onDecline = async (invitation: HomeInvitationItem) => {
+    if (!invitation.interactive) {
+      return;
+    }
+    setActionError(null);
+    setPendingActionId(invitation.id);
+    try {
+      await declineMutation.mutateAsync(invitation.id);
+    } catch (error) {
+      setActionError(mapInvitationError(error));
+    } finally {
+      setPendingActionId(null);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -83,6 +183,81 @@ export function HomeScreen() {
 
         {showPreviewOrLoaded && !isEmpty ? (
           <>
+            {hasInvitations ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Invitations</Text>
+                {actionError ? <Text style={styles.actionError}>{actionError}</Text> : null}
+                {shouldLoadInvitations && invitationsQuery.isError ? (
+                  <Text style={styles.actionError}>
+                    {mapInvitationError(invitationsQuery.error)}
+                  </Text>
+                ) : null}
+                {invitations.map((invitation) => {
+                  const busy = pendingActionId === invitation.id;
+                  return (
+                    <AppCard key={invitation.id} variant="elevated">
+                      <View style={styles.invitationCard}>
+                        <View style={styles.invitationBadges}>
+                          <StatusBadge label="Invitation" variant="invitation" />
+                          <StatusBadge
+                            label={roleLabel(invitation.intendedRole)}
+                            variant="muted"
+                          />
+                        </View>
+                        <Text style={styles.invitationTitle}>{invitation.tripName}</Text>
+                        <Text style={styles.invitationMeta}>
+                          Invited by {invitation.inviterDisplayName}
+                        </Text>
+                        {invitation.destinationSummary ? (
+                          <Text style={styles.invitationMeta}>
+                            {invitation.destinationSummary}
+                          </Text>
+                        ) : null}
+                        <Text style={styles.invitationMeta}>
+                          {formatInvitationExpiry(invitation.expiresAt)}
+                        </Text>
+                        <View style={styles.invitationActions}>
+                          <View style={styles.invitationAction}>
+                            <AppButton
+                              label="Accept"
+                              size="sm"
+                              loading={busy && acceptMutation.isPending}
+                              disabled={
+                                !invitation.interactive ||
+                                busy ||
+                                acceptMutation.isPending ||
+                                declineMutation.isPending
+                              }
+                              onPress={() => {
+                                void onAccept(invitation);
+                              }}
+                            />
+                          </View>
+                          <View style={styles.invitationAction}>
+                            <AppButton
+                              label="Decline"
+                              size="sm"
+                              variant="secondary"
+                              loading={busy && declineMutation.isPending}
+                              disabled={
+                                !invitation.interactive ||
+                                busy ||
+                                acceptMutation.isPending ||
+                                declineMutation.isPending
+                              }
+                              onPress={() => {
+                                void onDecline(invitation);
+                              }}
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    </AppCard>
+                  );
+                })}
+              </View>
+            ) : null}
+
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Upcoming</Text>
@@ -105,36 +280,6 @@ export function HomeScreen() {
                 ))
               )}
             </View>
-
-            {showInvitations ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Invitations</Text>
-                {mockInvitations.map((invitation) => (
-                  <AppCard key={invitation.id} variant="elevated">
-                    <View style={styles.invitationCard}>
-                      <StatusBadge label="Invitation" variant="invitation" />
-                      <Text style={styles.invitationTitle}>{invitation.tripName}</Text>
-                      <Text style={styles.invitationMeta}>
-                        Invited by {invitation.inviterName}
-                      </Text>
-                      <View style={styles.invitationActions}>
-                        <View style={styles.invitationAction}>
-                          <AppButton label="Accept" size="sm" onPress={() => undefined} />
-                        </View>
-                        <View style={styles.invitationAction}>
-                          <AppButton
-                            label="Decline"
-                            size="sm"
-                            variant="secondary"
-                            onPress={() => undefined}
-                          />
-                        </View>
-                      </View>
-                    </View>
-                  </AppCard>
-                ))}
-              </View>
-            ) : null}
 
             {previous.length > 0 ? (
               <View style={styles.section}>

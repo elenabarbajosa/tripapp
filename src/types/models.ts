@@ -55,12 +55,62 @@ export interface TripSummary {
   homeCurrency: string;
 }
 
+export type InvitationStatus = "pending" | "accepted" | "declined" | "revoked" | "expired";
+
 export interface TripInvitation {
   id: string;
   tripId: string;
   tripName: string;
   inviterName: string;
-  invitedEmail: string;
+  invitedEmail: string | null;
+  intendedRole: Exclude<MemberRole, "owner">;
+  destinationSummary: string;
+  expiresAt: string;
+  status: InvitationStatus;
+  createdAt?: string;
+}
+
+export interface InvitationPreview {
+  invitationId: string;
+  tripId: string;
+  tripName: string;
+  destinationSummary: string;
+  inviterDisplayName: string;
+  intendedRole: Exclude<MemberRole, "owner">;
+  status: InvitationStatus;
+  expiresAt: string;
+  isExpired: boolean;
+  isUsable: boolean;
+  alreadyMember: boolean;
+  requiresEmailMatch: boolean;
+  emailMatches: boolean | null;
+}
+
+export interface PendingInvitation {
+  id: string;
+  tripId: string;
+  tripName: string;
+  destinationSummary: string;
+  inviterDisplayName: string;
+  intendedRole: Exclude<MemberRole, "owner">;
+  expiresAt: string;
+  createdAt: string;
+  invitedEmail: string | null;
+}
+
+export interface TripMemberWithProfile {
+  id: string;
+  tripId: string;
+  userId: string;
+  role: MemberRole;
+  profile: ProfileSummary;
+}
+
+export interface CreatedInvitation {
+  invitationId: string;
+  rawToken: string;
+  expiresAt: string;
+  inviteLink: string;
 }
 
 export interface ActivityItem {

@@ -14,14 +14,17 @@ import { usePreview } from "@/features/preview/PreviewProvider";
 import { useTripQuery } from "@/features/trips/hooks";
 import { formatCurrency } from "@/utils/currency";
 import { formatCountdown, formatTimeLabel } from "@/utils/date";
+import { resolveRouteParam } from "@/utils/routeParams";
 import { styles } from "./OverviewScreen.styles";
 
 export function OverviewScreen() {
-  const { tripId } = useLocalSearchParams<{ tripId: string }>();
-  const { isAuthenticated } = useAuth();
+  const params = useLocalSearchParams<{ tripId?: string | string[] }>();
+  const tripId = resolveRouteParam(params.tripId);
+  const { isAuthenticated, isInitializing } = useAuth();
   const { isPreviewActive } = usePreview();
 
-  const shouldLoad = isAuthenticated && !isPreviewActive && Boolean(tripId);
+  const shouldLoad =
+    !isInitializing && isAuthenticated && !isPreviewActive && Boolean(tripId);
   const tripQuery = useTripQuery(tripId, shouldLoad);
 
   if (shouldLoad && tripQuery.isLoading) {

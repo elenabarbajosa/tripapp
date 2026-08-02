@@ -168,6 +168,11 @@ export const mockInvitations: TripInvitation[] = [
     tripName: "Denver Ski Week",
     inviterName: "Casey Quinn",
     invitedEmail: "alex@example.com",
+    intendedRole: "viewer",
+    destinationSummary: "Denver, United States",
+    expiresAt: "2026-08-09T12:00:00.000Z",
+    status: "pending",
+    createdAt: "2026-08-02T12:00:00.000Z",
   },
 ];
 

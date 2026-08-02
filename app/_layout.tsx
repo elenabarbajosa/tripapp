@@ -36,6 +36,7 @@ function RootNavigator() {
         }}
       >
         <Stack.Screen name="index" />
+        <Stack.Screen name="invite/[token]" />
 
         <Stack.Protected guard={canAccessAuth}>
           <Stack.Screen name="(auth)" />

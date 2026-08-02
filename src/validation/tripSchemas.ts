@@ -68,11 +68,10 @@ export const createTripDestinationItemSchema = z
         path: ["currencyCode"],
       });
     }
-    // arrivalDate <= departureDate
     if (values.departureDate < values.arrivalDate) {
       ctx.addIssue({
         code: "custom",
-        message: "Departure must be on or after arrival",
+        message: "Departure date must be on or after the arrival date.",
         path: ["departureDate"],
       });
     }
@@ -92,31 +91,26 @@ export const createTripDestinationsSchema = z
   })
   .superRefine((values, ctx) => {
     values.destinations.forEach((destination, index) => {
-      if (destination.arrivalDate < values.tripStartDate) {
+      const arrivalOutsideTrip =
+        destination.arrivalDate < values.tripStartDate ||
+        destination.arrivalDate > values.tripEndDate;
+      if (arrivalOutsideTrip) {
         ctx.addIssue({
           code: "custom",
-          message: "Arrival must be on or after the trip start date",
-          path: ["destinations", index, "arrivalDate"],
-        });
-      }
-      if (destination.arrivalDate > values.tripEndDate) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Arrival must be on or before the trip end date",
+          message: "Arrival date must be within the trip dates.",
           path: ["destinations", index, "arrivalDate"],
         });
       }
       if (destination.departureDate < destination.arrivalDate) {
         ctx.addIssue({
           code: "custom",
-          message: "Departure must be on or after arrival",
+          message: "Departure date must be on or after the arrival date.",
           path: ["destinations", index, "departureDate"],
         });
-      }
-      if (destination.departureDate > values.tripEndDate) {
+      } else if (destination.departureDate > values.tripEndDate) {
         ctx.addIssue({
           code: "custom",
-          message: "Departure must be on or before the trip end date",
+          message: "Departure date must be on or before the trip end date.",
           path: ["destinations", index, "departureDate"],
         });
       }
@@ -127,14 +121,21 @@ export type CreateTripBasicsValues = z.infer<typeof createTripBasicsSchema>;
 export type CreateTripDestinationItemValues = z.infer<typeof createTripDestinationItemSchema>;
 export type CreateTripDestinationsValues = z.infer<typeof createTripDestinationsSchema>;
 
-/** Prefill the next stop from the previous destination's departure (same-day handoff OK). */
+/**
+ * Prefill the next stop from the previous destination's departure.
+ * Both arrival and departure default to that handoff day (same-day transitions are valid).
+ */
 export function buildNextDestinationDefaults(input: {
   tripStartDate: string;
   tripEndDate: string;
   previous?: Pick<CreateTripDestinationItemValues, "departureDate"> | null;
 }): Pick<CreateTripDestinationItemValues, "arrivalDate" | "departureDate"> {
-  const arrivalDate = input.previous?.departureDate || input.tripStartDate;
-  const departureDate =
-    input.tripEndDate >= arrivalDate ? input.tripEndDate : arrivalDate;
-  return { arrivalDate, departureDate };
+  const candidate = input.previous?.departureDate || input.tripStartDate;
+  const clamped =
+    candidate < input.tripStartDate
+      ? input.tripStartDate
+      : candidate > input.tripEndDate
+        ? input.tripEndDate
+        : candidate;
+  return { arrivalDate: clamped, departureDate: clamped };
 }

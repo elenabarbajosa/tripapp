@@ -17,6 +17,7 @@ export default function TripLayout() {
       <Stack.Screen name="ideas" />
       <Stack.Screen name="votes" />
       <Stack.Screen name="group" />
+      <Stack.Screen name="invite" />
       <Stack.Screen name="settings" />
     </Stack>
   );

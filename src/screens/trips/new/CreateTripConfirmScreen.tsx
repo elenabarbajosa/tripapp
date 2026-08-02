@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
@@ -48,6 +48,9 @@ export function CreateTripConfirmScreen() {
   const dayCount = eachISODateInRange(draft.basics.startDate, draft.basics.endDate).length;
 
   const onCreate = async () => {
+    if (createTripMutation.isPending) {
+      return;
+    }
     if (!primaryCurrency) {
       setFormError("Add a destination with a valid currency before creating the trip.");
       return;
@@ -55,7 +58,7 @@ export function CreateTripConfirmScreen() {
 
     setFormError(null);
     try {
-      await createTripMutation.mutateAsync({
+      const tripId = await createTripMutation.mutateAsync({
         name: draft.basics!.name,
         startDate: draft.basics!.startDate,
         endDate: draft.basics!.endDate,
@@ -71,13 +74,17 @@ export function CreateTripConfirmScreen() {
           displayOrder: index + 1,
         })),
       });
+
+      if (!tripId || typeof tripId !== "string") {
+        setFormError("Trip was created but no id was returned. Pull to refresh on Home.");
+        return;
+      }
+
       resetDraft();
-      // Leave the create-trip stack and land on authenticated Home with fresh trip list.
       router.replace("/(main)/home");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to create trip.";
       setFormError(message);
-      Alert.alert("Could not create trip", message);
     }
   };
 
