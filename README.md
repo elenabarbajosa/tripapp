@@ -6,13 +6,13 @@ Collaborative travel planning for solo travellers, couples, families, and groups
 
 ## Phase status
 
-**Phase 4A.1 (current):** Geoapify location autocomplete for itinerary activities (server-side Edge Function; manual fallback).
+**Phase 4 complete (current):** Itinerary, Geoapify places, bookings, expenses, packing, and ideas/voting.
 
-**Still upcoming (do not start yet)**
+**Still upcoming (do not start yet — Phase 5+)**
 
-- Flights, accommodation bookings, general bookings, expenses, packing lists, ideas/voting, maps
-- Notifications, offline mode, AI recommendations
-- Ads, paywalls, subscriptions, social features
+- Live airline / hotel / train / restaurant provider APIs
+- Maps, directions, push notifications, offline mode
+- AI recommendations, monetization, social profiles / public feeds
 
 ## Stack
 
@@ -63,6 +63,10 @@ Run in order:
 5. `20260802040000_fix_trip_members_access.sql` ← Group member load / RLS recursion fix
 6. `20260802050000_trip_itinerary.sql` ← Phase 4A itinerary activities
 7. `20260802060000_activity_places.sql` ← Phase 4A.1 Geoapify place fields
+8. `20260802070000_trip_bookings.sql` ← Phase 4B bookings
+9. `20260802080000_trip_expenses.sql` ← Phase 4C expenses + settlements
+10. `20260802090000_trip_packing.sql` ← Phase 4D packing
+11. `20260802100000_trip_ideas.sql` ← Phase 4E ideas + voting
 
 **Option A — Supabase SQL Editor:** run each file in order.
 
@@ -293,6 +297,154 @@ npx supabase secrets set GEOAPIFY_API_KEY=YOUR_GEOAPIFY_KEY_HERE
 
 Do **not** deploy with `--no-verify-jwt`. Do **not** put the key in app `.env` or `EXPO_PUBLIC_*`.
 
+## Phase 4B — Bookings and reservations
+
+Manual booking entry only (no live provider APIs, ticket uploads, or OCR).
+
+### Scope
+
+- Accommodation, flight, train, bus, car rental, restaurant, activity, other
+- Owner/editor create / edit / delete; viewer read + copy confirmation/reference
+- Filters: All, Stays, Transport, Food, Activities, Other
+- Groups: Upcoming, Previous, Undated
+- Geoapify PlaceAutocompleteField reused for stays / restaurants / activities / other
+
+### Schema
+
+Enum `trip_booking_type`. Table `trip_bookings` with confirmation fields, dates/times, location metadata, transport fields, check-in/out. Constraints enforce blank titles, date/time ordering, and paired lat/lng. Never store payment-card data.
+
+### Routes
+
+| Route | Purpose |
+| --- | --- |
+| `app/trips/[tripId]/bookings/index.tsx` | List |
+| `app/trips/[tripId]/bookings/new.tsx` | Create |
+| `app/trips/[tripId]/bookings/[bookingId]/index.tsx` | Detail |
+| `app/trips/[tripId]/bookings/[bookingId]/edit.tsx` | Edit |
+
+Explicit `{ tripId }` / `{ bookingId }` params required. Permission helpers: `canViewBookings`, `canCreateBooking`, `canEditBooking`, `canDeleteBooking`.
+
+### Migration
+
+```bash
+npx supabase db push
+# or paste supabase/migrations/20260802070000_trip_bookings.sql
+```
+
+## Phase 4C — Expenses and group splitting
+
+Track shared spending and settlements. No banks, FX conversion, receipt uploads, or real money transfers.
+
+### Scope
+
+- Categories: accommodation, transport, food, activities, shopping, other
+- Split methods: equal, exact amounts, percentages
+- Balances per member **per currency** (currencies never mixed)
+- Settlements record that a repayment happened; they do not move money
+
+### Money
+
+Amounts stored as integer **minor units** (`amount_minor`). Client helpers in `src/utils/money.ts` format/parse and allocate equal/percentage remainders deterministically.
+
+### Secure RPCs
+
+`create_trip_expense`, `update_trip_expense`, `delete_trip_expense`, `record_trip_settlement`, `delete_trip_settlement` — `SECURITY DEFINER` with safe `search_path`, auth checks, member validation, and exact split totals. Direct table writes for mutations are blocked where RPCs are required.
+
+### Balance formula (per user + currency)
+
+```text
+balance = expenses paid − shares owed + settlements sent − settlements received
+```
+
+Positive = is owed; negative = owes; zero = settled.
+
+### Routes
+
+| Route | Purpose |
+| --- | --- |
+| `app/trips/[tripId]/expenses/index.tsx` | Overview |
+| `app/trips/[tripId]/expenses/new.tsx` | Add expense |
+| `app/trips/[tripId]/expenses/[expenseId]/index.tsx` | Detail |
+| `app/trips/[tripId]/expenses/[expenseId]/edit.tsx` | Edit |
+| `app/trips/[tripId]/expenses/settlements/new.tsx` | Record settlement |
+
+Helpers: `canViewExpenses`, `canManageExpenses`, `canRecordSettlement`.
+
+### Migration
+
+```bash
+npx supabase db push
+# or paste supabase/migrations/20260802080000_trip_expenses.sql
+```
+
+## Phase 4D — Collaborative packing lists
+
+Shared + personal packing items with progress, filters, assignment, and reorder.
+
+### Scope
+
+- Categories: clothes, toiletries, electronics, documents, medication, travel, other
+- Scope: `shared` | `personal` (personal requires assignee who is an accepted member)
+- Owner/editor manage any item and reorder; accepted members toggle shared / self-assigned items and manage their own personal items
+- Realtime subscription on `trip_packing_items` for the active trip (subscribe while mounted; clean up on unmount)
+
+### Secure RPCs
+
+- `toggle_trip_packing_item` — packs/unpacks and sets/clears `packed_by` / `packed_at` atomically
+- `reorder_trip_packing_items` — owner/editor only; validates ids belong to the trip
+
+### Routes
+
+| Route | Purpose |
+| --- | --- |
+| `app/trips/[tripId]/packing/index.tsx` | List + progress |
+| `app/trips/[tripId]/packing/new.tsx` | Add item |
+| `app/trips/[tripId]/packing/[itemId]/edit.tsx` | Edit item |
+
+Helpers: `canViewPacking`, `canCreatePackingItem`, `canEditPackingItem`, `canDeletePackingItem`, `canTogglePackingItem`, `canReorderPackingItems`.
+
+### Migration
+
+```bash
+npx supabase db push
+# or paste supabase/migrations/20260802090000_trip_packing.sql
+```
+
+## Phase 4E — Ideas and voting
+
+Propose ideas, upvote, archive, and promote winners into the itinerary.
+
+### Scope
+
+- Categories: sightseeing, food, activity, nightlife, shopping, transport, other
+- Status: proposed → added_to_itinerary | archived
+- Any accepted member may create ideas and vote (one vote per member per idea)
+- Creator may edit/delete own **proposed** idea; owner/editor manage any, archive, promote
+- Geoapify PlaceAutocompleteField reused on idea forms
+- Realtime on `trip_ideas` + `trip_idea_votes`
+
+### Promote RPC
+
+`promote_trip_idea_to_activity` — owner/editor only; creates a real `trip_activities` row (copies title, description, category mapping, location/Geoapify metadata), sets idea status + `promoted_activity_id`, rejects duplicate promotion, validates day/destination ownership.
+
+### Routes
+
+| Route | Purpose |
+| --- | --- |
+| `app/trips/[tripId]/ideas/index.tsx` | Ranked list |
+| `app/trips/[tripId]/ideas/new.tsx` | Suggest |
+| `app/trips/[tripId]/ideas/[ideaId]/edit.tsx` | Edit |
+| `app/trips/[tripId]/ideas/[ideaId]/add-to-itinerary.tsx` | Promote |
+
+Helpers: `canViewIdeas`, `canCreateIdea`, `canVoteOnIdea`, `canEditIdea`, `canDeleteIdea`, `canArchiveIdea`, `canPromoteIdea`.
+
+### Migration
+
+```bash
+npx supabase db push
+# or paste supabase/migrations/20260802100000_trip_ideas.sql
+```
+
 ## Manual test plan
 
 ### Create trip
@@ -344,6 +496,34 @@ Decline, revoke, expire, email mismatch, already accepted / already member.
 5. Edit the location text → place id / lat / lng clear; save as manual location  
 6. With secret unset or function stopped → friendly message; manual entry still works  
 
+### Bookings (Phase 4B)
+
+1. Trip → More → Bookings → Add accommodation (Geoapify or manual) → save  
+2. Add flight with departure/arrival → open detail → copy confirmation → edit → delete (confirm)  
+3. Viewer: read-only; can copy confirmation; no add/edit/delete  
+
+### Expenses (Phase 4C)
+
+1. Trip → More → Expenses → add equal split → add exact → add percentage  
+2. Review totals and balances by currency → record settlement → balances update  
+3. Viewer: can view; cannot add expenses or settlements  
+
+### Packing (Phase 4D)
+
+1. Trip → More → Packing → add shared item → add personal item assigned to a traveller  
+2. Toggle packed → progress updates → filter Shared / Mine / Packed / Unpacked  
+3. Owner/editor reorder; viewer toggles shared/self-assigned only  
+
+### Ideas (Phase 4E)
+
+1. Trip → More → Ideas → add idea → vote → remove vote → sort Top / Newest  
+2. Owner/editor: Add to itinerary → pick day → confirm → activity appears on Itinerary  
+3. Viewer: can propose and vote; cannot promote or manage others’ ideas  
+
+### Permissions matrix
+
+Test owner, editor, viewer, and an unrelated account against bookings, expenses, packing, and ideas.
+
 ## Quality checks
 
 ```bash
@@ -371,8 +551,13 @@ Colocated `*.styles.ts`, theme tokens only, no static inline styles, thin `app/`
 - Share-link Home cards are not listed (email-matched only); open the link to accept  
 - Expired invitations are marked lazily on read/mutation  
 - Preview mode continues to use mock invitations only  
-- **Create-trip date picker / validation UX** still needs a dedicated later fix (deferred; not addressed in Phase 4A / 4A.1)  
-- Itinerary reorder uses Move Up / Move Down only (no drag-and-drop in this phase)  
-- Phase 4A.1 has **no visible map**, directions, or nearby recommendations  
+- **Create-trip date picker / validation UX** remains deferred (not modified in Phase 4B–4E)  
+- Itinerary reorder uses Move Up / Move Down only (no drag-and-drop)  
+- **No** live airline, hotel, train, or restaurant provider APIs  
+- **No** email inbox parsing, ticket/receipt uploads, or OCR  
+- **No** real payment transfers or banking integrations  
+- **No** automatic currency conversion (multi-currency balances stay separate)  
+- **No** visible maps, directions, push notifications, offline mode, AI recommendations, or monetization  
+- **No** social profiles or public feeds  
 - Place search quality depends on Geoapify / OpenStreetMap data  
-- Bookings and later itinerary-adjacent features are not started  
+- Geoapify autocomplete requires the Edge Function + `GEOAPIFY_API_KEY` secret  

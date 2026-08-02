@@ -47,6 +47,17 @@ export const colors = {
   freeTime: "#64748B",
   note: "#475569",
   other: "#64748B",
+  train: "#0E7490",
+  bus: "#4D7C0F",
+  carRental: "#B45309",
+
+  // Expense category accents (Phase 4C)
+  expenseAccommodation: "#7C3AED",
+  expenseTransport: "#0369A1",
+  expenseFood: "#C2410C",
+  expenseActivities: "#0D9488",
+  expenseShopping: "#DB2777",
+  expenseOther: "#64748B",
 
   // Map / status helpers
   tentative: "#D97706",

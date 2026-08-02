@@ -1,21 +1,41 @@
 import {
   canChangeMemberRoles,
   canCreateActivity,
+  canCreateBooking,
+  canCreatePackingItem,
   canDeleteActivity,
+  canDeleteBooking,
+  canDeletePackingItem,
   canDeleteTrip,
   canEditActivity,
+  canEditBooking,
+  canEditPackingItem,
   canEditTripContent,
   canInviteMembers,
   canLeaveTrip,
+  canManageExpenses,
   canManageMemberRoles,
   canManageTripSettings,
+  canRecordSettlement,
   canRemoveMember,
   canRemoveMembers,
   canReorderActivities,
+  canReorderPackingItems,
   canRevokeInvitation,
+  canTogglePackingItem,
   canTransferOwnership,
+  canViewBookings,
+  canViewExpenses,
   canViewItinerary,
+  canViewPacking,
   canViewTrip,
+  canArchiveIdea,
+  canCreateIdea,
+  canDeleteIdea,
+  canEditIdea,
+  canPromoteIdea,
+  canViewIdeas,
+  canVoteOnIdea,
   roleLabel,
 } from "@/features/trips/permissions";
 
@@ -85,5 +105,144 @@ describe("trip permissions", () => {
     expect(canReorderActivities("editor")).toBe(true);
     expect(canReorderActivities("viewer")).toBe(false);
     expect(canReorderActivities(null)).toBe(false);
+  });
+
+  it("grants booking view to all accepted roles", () => {
+    expect(canViewBookings("owner")).toBe(true);
+    expect(canViewBookings("editor")).toBe(true);
+    expect(canViewBookings("viewer")).toBe(true);
+    expect(canViewBookings(null)).toBe(false);
+  });
+
+  it("limits booking mutations to owners and editors", () => {
+    expect(canCreateBooking("owner")).toBe(true);
+    expect(canCreateBooking("editor")).toBe(true);
+    expect(canCreateBooking("viewer")).toBe(false);
+    expect(canEditBooking("editor")).toBe(true);
+    expect(canEditBooking("viewer")).toBe(false);
+    expect(canDeleteBooking("owner")).toBe(true);
+    expect(canDeleteBooking("viewer")).toBe(false);
+    expect(canDeleteBooking(null)).toBe(false);
+  });
+
+  it("grants expense view to all accepted roles", () => {
+    expect(canViewExpenses("owner")).toBe(true);
+    expect(canViewExpenses("editor")).toBe(true);
+    expect(canViewExpenses("viewer")).toBe(true);
+    expect(canViewExpenses(null)).toBe(false);
+  });
+
+  it("limits expense and settlement mutations to owners and editors", () => {
+    expect(canManageExpenses("owner")).toBe(true);
+    expect(canManageExpenses("editor")).toBe(true);
+    expect(canManageExpenses("viewer")).toBe(false);
+    expect(canManageExpenses(null)).toBe(false);
+    expect(canRecordSettlement("owner")).toBe(true);
+    expect(canRecordSettlement("editor")).toBe(true);
+    expect(canRecordSettlement("viewer")).toBe(false);
+    expect(canRecordSettlement(null)).toBe(false);
+  });
+
+  describe("packing permissions", () => {
+    const ownerId = "11111111-1111-4111-8111-111111111111";
+    const otherId = "22222222-2222-4222-8222-222222222222";
+
+    it("grants packing view to all accepted roles", () => {
+      expect(canViewPacking("owner")).toBe(true);
+      expect(canViewPacking("editor")).toBe(true);
+      expect(canViewPacking("viewer")).toBe(true);
+      expect(canViewPacking(null)).toBe(false);
+    });
+
+    it("lets owners and editors create any packing item", () => {
+      expect(canCreatePackingItem("owner", "shared", null, ownerId)).toBe(true);
+      expect(canCreatePackingItem("editor", "personal", otherId, ownerId)).toBe(true);
+    });
+
+    it("lets viewers only create a personal item assigned to themselves", () => {
+      expect(canCreatePackingItem("viewer", "personal", ownerId, ownerId)).toBe(true);
+      expect(canCreatePackingItem("viewer", "personal", otherId, ownerId)).toBe(false);
+      expect(canCreatePackingItem("viewer", "shared", null, ownerId)).toBe(false);
+      expect(canCreatePackingItem(null, "personal", ownerId, ownerId)).toBe(false);
+    });
+
+    it("lets owners and editors edit or delete any packing item", () => {
+      const sharedItem = { scope: "shared" as const, assignedTo: null, createdBy: otherId };
+      expect(canEditPackingItem("owner", sharedItem, ownerId)).toBe(true);
+      expect(canDeletePackingItem("editor", sharedItem, ownerId)).toBe(true);
+    });
+
+    it("lets a viewer edit or delete only their own personal item", () => {
+      const ownPersonalItem = {
+        scope: "personal" as const,
+        assignedTo: ownerId,
+        createdBy: ownerId,
+      };
+      const othersPersonalItem = {
+        scope: "personal" as const,
+        assignedTo: otherId,
+        createdBy: otherId,
+      };
+      const sharedItem = { scope: "shared" as const, assignedTo: null, createdBy: otherId };
+
+      expect(canEditPackingItem("viewer", ownPersonalItem, ownerId)).toBe(true);
+      expect(canDeletePackingItem("viewer", ownPersonalItem, ownerId)).toBe(true);
+      expect(canEditPackingItem("viewer", othersPersonalItem, ownerId)).toBe(false);
+      expect(canEditPackingItem("viewer", sharedItem, ownerId)).toBe(false);
+      expect(canEditPackingItem(null, ownPersonalItem, ownerId)).toBe(false);
+    });
+
+    it("lets any accepted member toggle a shared item or their own personal item", () => {
+      const sharedItem = { scope: "shared" as const, assignedTo: null };
+      const ownPersonalItem = { scope: "personal" as const, assignedTo: ownerId };
+      const othersPersonalItem = { scope: "personal" as const, assignedTo: otherId };
+
+      expect(canTogglePackingItem("viewer", sharedItem, ownerId)).toBe(true);
+      expect(canTogglePackingItem("viewer", ownPersonalItem, ownerId)).toBe(true);
+      expect(canTogglePackingItem("viewer", othersPersonalItem, ownerId)).toBe(false);
+      expect(canTogglePackingItem("owner", othersPersonalItem, ownerId)).toBe(true);
+      expect(canTogglePackingItem(null, sharedItem, ownerId)).toBe(false);
+    });
+
+    it("limits packing reorder to owners and editors", () => {
+      expect(canReorderPackingItems("owner")).toBe(true);
+      expect(canReorderPackingItems("editor")).toBe(true);
+      expect(canReorderPackingItems("viewer")).toBe(false);
+      expect(canReorderPackingItems(null)).toBe(false);
+    });
+  });
+
+  describe("ideas permissions", () => {
+    const ownerId = "11111111-1111-4111-8111-111111111111";
+    const otherId = "22222222-2222-4222-8222-222222222222";
+    const proposedOwn = { status: "proposed" as const, createdBy: ownerId };
+    const proposedOther = { status: "proposed" as const, createdBy: otherId };
+    const archivedOwn = { status: "archived" as const, createdBy: ownerId };
+
+    it("lets any accepted member view, create, and vote", () => {
+      expect(canViewIdeas("viewer")).toBe(true);
+      expect(canCreateIdea("viewer")).toBe(true);
+      expect(canVoteOnIdea("viewer")).toBe(true);
+      expect(canViewIdeas(null)).toBe(false);
+      expect(canCreateIdea(null)).toBe(false);
+      expect(canVoteOnIdea(null)).toBe(false);
+    });
+
+    it("lets creators edit or delete their own proposed idea", () => {
+      expect(canEditIdea("viewer", proposedOwn, ownerId)).toBe(true);
+      expect(canDeleteIdea("viewer", proposedOwn, ownerId)).toBe(true);
+      expect(canEditIdea("viewer", proposedOther, ownerId)).toBe(false);
+      expect(canEditIdea("viewer", archivedOwn, ownerId)).toBe(false);
+    });
+
+    it("lets owners and editors manage any idea and promote", () => {
+      expect(canEditIdea("owner", proposedOther, ownerId)).toBe(true);
+      expect(canDeleteIdea("editor", proposedOther, ownerId)).toBe(true);
+      expect(canArchiveIdea("owner")).toBe(true);
+      expect(canArchiveIdea("viewer")).toBe(false);
+      expect(canPromoteIdea("editor")).toBe(true);
+      expect(canPromoteIdea("viewer")).toBe(false);
+      expect(canPromoteIdea(null)).toBe(false);
+    });
   });
 });
