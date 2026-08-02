@@ -1,3 +1,13 @@
+/**
+ * Native Google Sign-In adapter.
+ *
+ * This is the ONLY module allowed to import
+ * `@react-native-google-signin/google-signin`.
+ *
+ * Must be loaded exclusively via:
+ *   await import("./googleSignInNative")
+ * after the Expo Go guard in googleSignIn.ts has already returned.
+ */
 import { Platform } from "react-native";
 import {
   GoogleSignin,
@@ -13,12 +23,12 @@ import {
   AuthNotConfiguredError,
   AuthUnavailableError,
   logAuthErrorCategory,
-} from "./authErrors";
-import { fillEmptyProfileFromAuthUser } from "./profileSync";
+} from "../authErrors";
+import { fillEmptyProfileFromAuthUser } from "../profileSync";
 
 let googleConfigured = false;
 
-export function resetGoogleSignInConfigurationForTests(): void {
+export function resetGoogleNativeConfigurationForTests(): void {
   googleConfigured = false;
 }
 
@@ -33,23 +43,21 @@ function ensureGoogleConfigured(): void {
 
   GoogleSignin.configure({
     webClientId: appConfig.googleWebClientId,
-    ...(appConfig.googleIosClientId
-      ? { iosClientId: appConfig.googleIosClientId }
-      : {}),
+    ...(appConfig.googleIosClientId ? { iosClientId: appConfig.googleIosClientId } : {}),
     offlineAccess: false,
   });
   googleConfigured = true;
 }
 
 /**
- * Native Google ID-token sign-in via @react-native-google-signin/google-signin.
- * Requires a development build (not available in Expo Go).
+ * Performs native Google ID-token sign-in.
+ * Requires a development build (never load this module in Expo Go).
  *
  * Native Google ID tokens from this library do not expose a custom nonce API
  * in the free Original module. Enable "Skip nonce check" for the Google
  * provider in the Supabase dashboard when using this flow.
  */
-export async function signInWithGoogleIdToken(): Promise<void> {
+export async function signInWithGoogleIdTokenNative(): Promise<void> {
   if (!getSupabaseClient()) {
     throw new AuthNotConfiguredError(getSupabaseStatusMessage());
   }

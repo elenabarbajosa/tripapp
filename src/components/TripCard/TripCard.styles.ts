@@ -51,4 +51,7 @@ export const styles = StyleSheet.create({
   travellers: {
     ...typography.caption,
   },
+  pressed: {
+    opacity: 0.94,
+  },
 });

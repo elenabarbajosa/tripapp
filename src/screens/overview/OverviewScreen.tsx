@@ -1,18 +1,83 @@
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
 
 import { BookingCard } from "@/components/BookingCard/BookingCard";
 import { AppCard } from "@/components/ui/AppCard/AppCard";
+import { ErrorState } from "@/components/ui/ErrorState/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState/LoadingState";
 import { ProgressBar } from "@/components/ui/ProgressBar/ProgressBar";
 import { StatusBadge } from "@/components/ui/StatusBadge/StatusBadge";
 import { mockTripOverview } from "@/data/mock";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { usePreview } from "@/features/preview/PreviewProvider";
+import { useTripQuery } from "@/features/trips/hooks";
 import { formatCurrency } from "@/utils/currency";
 import { formatCountdown, formatTimeLabel } from "@/utils/date";
 import { styles } from "./OverviewScreen.styles";
 
 export function OverviewScreen() {
-  const { trip, nextActivity, upcomingBooking, openVotes, budget, packing, planningProgressPercent } =
-    mockTripOverview;
+  const { tripId } = useLocalSearchParams<{ tripId: string }>();
+  const { isAuthenticated } = useAuth();
+  const { isPreviewActive } = usePreview();
+
+  const shouldLoad = isAuthenticated && !isPreviewActive && Boolean(tripId);
+  const tripQuery = useTripQuery(tripId, shouldLoad);
+
+  if (shouldLoad && tripQuery.isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <LoadingState label="Loading trip…" />
+      </SafeAreaView>
+    );
+  }
+
+  if (shouldLoad && tripQuery.isError) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <ErrorState
+          title="Could not load trip"
+          message={
+            tripQuery.error instanceof Error
+              ? tripQuery.error.message
+              : "Check your connection and try again."
+          }
+          onRetry={() => {
+            void tripQuery.refetch();
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (shouldLoad && !tripQuery.data) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <ErrorState title="Trip not found" message="This trip may have been deleted or you no longer have access." />
+      </SafeAreaView>
+    );
+  }
+
+  const liveTrip = tripQuery.data;
+  const useMockExtras = isPreviewActive || !liveTrip;
+
+  const trip = liveTrip ?? mockTripOverview.trip;
+  const nextActivity = useMockExtras ? mockTripOverview.nextActivity : null;
+  const upcomingBooking = useMockExtras ? mockTripOverview.upcomingBooking : null;
+  const openVotes = useMockExtras ? mockTripOverview.openVotes : [];
+  const budget = useMockExtras
+    ? mockTripOverview.budget
+    : {
+        totalBudget: 0,
+        amountSpent: 0,
+        remaining: 0,
+        currency: trip.currency,
+        percentUsed: 0,
+      };
+  const packing = useMockExtras
+    ? mockTripOverview.packing
+    : { sharedCompleted: 0, sharedTotal: 0, personalCompleted: 0, personalTotal: 0 };
+  const planningProgressPercent = useMockExtras ? mockTripOverview.planningProgressPercent : 5;
 
   const destinationLabel = trip.destinations.map((d) => d.city).join(" · ");
 
@@ -23,7 +88,10 @@ export function OverviewScreen() {
           <View style={styles.heroCard}>
             <Text style={styles.countdown}>{formatCountdown(trip.startDate)}</Text>
             <Text style={styles.tripName}>{trip.name}</Text>
-            <Text style={styles.destinations}>{destinationLabel}</Text>
+            <Text style={styles.destinations}>{destinationLabel || "No destinations"}</Text>
+            <Text style={styles.nextActivityMeta}>
+              {trip.travellerCount} traveller{trip.travellerCount === 1 ? "" : "s"} · {trip.currency}
+            </Text>
             <ProgressBar
               progress={planningProgressPercent}
               accessibilityLabel={`Planning progress ${planningProgressPercent}%`}
@@ -47,7 +115,11 @@ export function OverviewScreen() {
               />
             </>
           ) : (
-            <Text style={styles.nextActivityMeta}>No upcoming activity yet.</Text>
+            <Text style={styles.nextActivityMeta}>
+              {useMockExtras
+                ? "No upcoming activity yet."
+                : "Itinerary activities arrive in a later phase."}
+            </Text>
           )}
         </AppCard>
 
@@ -69,10 +141,16 @@ export function OverviewScreen() {
           <AppCard style={styles.statCard}>
             <Text style={styles.statLabel}>Packing</Text>
             <Text style={styles.statValue}>
-              {packing.sharedCompleted}/{packing.sharedTotal}
+              {packing.sharedTotal === 0
+                ? "—"
+                : `${packing.sharedCompleted}/${packing.sharedTotal}`}
             </Text>
             <ProgressBar
-              progress={Math.round((packing.sharedCompleted / packing.sharedTotal) * 100)}
+              progress={
+                packing.sharedTotal === 0
+                  ? 0
+                  : Math.round((packing.sharedCompleted / packing.sharedTotal) * 100)
+              }
             />
           </AppCard>
         </View>

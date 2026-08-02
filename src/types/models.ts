@@ -32,17 +32,19 @@ export interface TripDestination {
   id: string;
   city: string;
   country: string;
+  countryCode: string | null;
+  currencyCode: string;
   arrivalDate: string;
   departureDate: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   displayOrder: number;
 }
 
 export interface TripSummary {
   id: string;
   name: string;
-  coverImageUrl: string;
+  coverImageUrl: string | null;
   startDate: string;
   endDate: string;
   destinations: TripDestination[];
@@ -50,6 +52,7 @@ export interface TripSummary {
   travellerCount: number;
   phase: TripPhase;
   currency: string;
+  homeCurrency: string;
 }
 
 export interface TripInvitation {

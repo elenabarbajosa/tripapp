@@ -11,11 +11,7 @@ import {
 import { Platform } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
-import {
-  getGoogleConfigMessage,
-  isGoogleSignInConfigured,
-  isSupabaseConfigured,
-} from "@/constants/config";
+import { isSupabaseConfigured } from "@/constants/config";
 import {
   fetchProfileByUserId,
   getSupabaseClient,
@@ -34,7 +30,11 @@ import {
   type SocialAuthProvider,
 } from "./authErrors";
 import { buildAuthState } from "./authState";
-import { signInWithGoogleIdToken } from "./googleSignIn";
+import {
+  getGoogleSignInUnavailableMessage,
+  isGoogleNativeSignInAvailable,
+  signInWithGoogleIdToken,
+} from "./google/googleSignIn";
 
 export interface AuthContextValue {
   session: Session | null;
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const loadedProfileUserId = useRef<string | null>(null);
   const socialAuthInFlight = useRef(false);
 
-  const googleAvailable = isSupabaseConfigured() && isGoogleSignInConfigured();
+  const googleAvailable = isGoogleNativeSignInAvailable();
 
   const loadProfile = useCallback(async (userId: string) => {
     const client = getSupabaseClient();
@@ -242,7 +242,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signInWithGoogle = useCallback(async () => {
     if (!googleAvailable) {
-      throw new AuthNotConfiguredError(getGoogleConfigMessage());
+      throw new AuthNotConfiguredError(getGoogleSignInUnavailableMessage());
     }
 
     beginSocialAuth("google");

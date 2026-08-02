@@ -1,10 +1,3 @@
-import { PlaceholderScreen } from "@/screens/PlaceholderScreen";
+import { TripSettingsScreen } from "@/screens/settings/TripSettingsScreen";
 
-export default function SettingsRoute() {
-  return (
-    <PlaceholderScreen
-      title="Trip settings"
-      body="Trip settings and ownership controls arrive in Phase 3."
-    />
-  );
-}
+export default TripSettingsScreen;

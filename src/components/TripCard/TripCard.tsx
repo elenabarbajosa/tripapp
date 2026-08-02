@@ -6,6 +6,10 @@ import { TripSummary } from "@/types/models";
 import { formatCountdown, formatDateRange } from "@/utils/date";
 import { styles } from "./TripCard.styles";
 
+/** Fallback cover when a trip has no image set. */
+export const DEFAULT_TRIP_COVER_URL =
+  "https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80";
+
 export interface TripCardProps {
   trip: TripSummary;
   onPress?: () => void;
@@ -14,16 +18,21 @@ export interface TripCardProps {
 
 export function TripCard({ trip, onPress, muted = false }: TripCardProps) {
   const destinationLabel = trip.destinations.map((d) => d.city).join(" · ");
+  const coverUri = trip.coverImageUrl?.trim() || DEFAULT_TRIP_COVER_URL;
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${trip.name}, ${destinationLabel}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, muted ? styles.mutedCard : null, pressed ? { opacity: 0.94 } : null]}
+      style={({ pressed }) => [
+        styles.card,
+        muted ? styles.mutedCard : null,
+        pressed ? styles.pressed : null,
+      ]}
     >
       <Image
-        source={{ uri: trip.coverImageUrl }}
+        source={{ uri: coverUri }}
         style={styles.image}
         contentFit="cover"
         accessibilityIgnoresInvertColors

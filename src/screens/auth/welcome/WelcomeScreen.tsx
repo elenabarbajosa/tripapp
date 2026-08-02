@@ -6,9 +6,10 @@ import { useRouter } from "expo-router";
 import { AppleSignInButton } from "@/components/auth/AppleSignInButton/AppleSignInButton";
 import { AppButton } from "@/components/ui/AppButton/AppButton";
 import { branding } from "@/constants/branding";
-import { appConfig, getGoogleConfigMessage } from "@/constants/config";
+import { appConfig } from "@/constants/config";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { shouldShowDevPreviewButton } from "@/features/auth/authState";
+import { getGoogleSignInUnavailableMessage } from "@/features/auth/google/googleSignIn";
 import { usePreview } from "@/features/preview/PreviewProvider";
 import { colors } from "@/theme";
 import { styles } from "./WelcomeScreen.styles";
@@ -49,7 +50,7 @@ export function WelcomeScreen() {
     }
 
     if (!isGoogleSignInAvailable) {
-      Alert.alert("Google sign-in", getGoogleConfigMessage());
+      Alert.alert("Google sign-in", getGoogleSignInUnavailableMessage());
       return;
     }
 

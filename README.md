@@ -6,11 +6,12 @@ Collaborative travel planning for solo travellers, couples, families, and groups
 
 ## Phase status
 
-**Phase 2B complete:** Google authentication (native ID token) and Apple authentication architecture/UI.
+**Phase 3A UX polish:** Create-trip wizard now uses native date pickers, searchable countries, automatic currency, and a four-step flow. Invitations still deferred to Phase 3B.
 
 **Still upcoming**
 
-- **Phase 3+:** Trips, invitations, itinerary, bookings, expenses, voting, maps
+- **Phase 3B:** Invitation records, emails, share links, deep-link accept, role-change UI, member removal
+- **Later:** Itinerary, bookings, expenses, voting, maps, ads/paywalls
 
 ## Stack
 
@@ -19,6 +20,8 @@ Collaborative travel planning for solo travellers, couples, families, and groups
 | App | Expo SDK 57, React Native, TypeScript (strict) |
 | Routing | Expo Router (`Stack.Protected`) |
 | Auth | Supabase Auth — email, Google ID token, Apple ID token |
+| Data | Supabase Postgres + RLS |
+| Server state | TanStack React Query |
 | Session storage | LargeSecureStore (SecureStore key + encrypted AsyncStorage) |
 | Forms | React Hook Form + Zod |
 
@@ -40,117 +43,109 @@ EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=
 
 Never commit `.env` or service-role keys. Never put Google/Apple client **secrets** in the app.
 
-| Variable | Required for |
-| --- | --- |
-| `EXPO_PUBLIC_SUPABASE_URL` | All auth |
-| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | All auth |
-| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | Google native ID token (required) |
-| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | Google on iOS + Expo config plugin URL scheme |
-| `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | Documentation / Google Cloud Android client (matched by package + SHA-1) |
+## Phase 3A — Trips foundation
 
-## Authentication architecture
+### Apply migrations
+
+1. `supabase/migrations/20260802010000_create_trips.sql` (tables + original RPC)
+2. `supabase/migrations/20260802020000_destination_currency.sql` (destination `currency_code` / `country_code` + updated `create_trip`)
+
+**Option A — Supabase SQL Editor**
+
+1. Open your Supabase project → **SQL Editor**.
+2. Run each migration file in order (after profiles).
+
+**Option B — Supabase CLI**
+
+```bash
+npx supabase db push
+```
+
+### Create-trip wizard (4 steps)
+
+1. **Basics** — name, start/end dates (calendar + DD/MM/YYYY typing), optional cover URL  
+2. **Destinations** — city, searchable country, arrival/departure dates  
+3. **Travellers** — solo or invite later (invitations in 3B)  
+4. **Review** — summary + create
+
+There is **no** separate currency step. Latitude/longitude are not shown; columns stay nullable for later Geoapify geocoding.
+
+### Date picker architecture
+
+- Component: `DateField` using `@expo/ui/community/datetime-picker`
+- Android: native dialog; iOS: inline calendar in a modal
+- Accent colour: theme `colors.primary`
+- Form + DB store **date-only** `YYYY-MM-DD`
+- Display (English UI): **DD/MM/YYYY**
+- Conversions use **local calendar parts** (not UTC midnight) so timezone/DST cannot shift the selected day
+
+### Country + currency
+
+- Dataset: static `countries-list` (no network)
+- Search: name, native name, alpha-2, alpha-3, aliases — trimmed, case-insensitive, diacritic-insensitive
+- Selecting a country sets `country_code` and primary `currency_code`
+- Single-country trip → `trips.currency` = that currency  
+- Multi-country trip → each destination keeps its currency; `trips.currency` = **first destination** currency (change later in Trip Settings)
+- Profile `preferred_currency` is stored as `trips.home_currency` only — it does not overwrite trip currency
+
+### Database objects created
+
+| Object | Purpose |
+| --- | --- |
+| `trip_member_role` enum | `owner`, `editor`, `viewer` |
+| `trips` | Trip header (`currency` = primary/base currency) |
+| `trip_destinations` | Ordered destinations + `country_code` + `currency_code` |
+| `trip_days` | One row per calendar day in the trip range |
+| `trip_members` | Accepted membership + role (`accepted` / `left`) |
+
+### RLS helpers & RPC
+
+| Function | Role |
+| --- | --- |
+| `is_accepted_trip_member(trip_id)` | Membership gate used by RLS |
+| `get_trip_role(trip_id)` | Current user's role |
+| `is_trip_owner(trip_id)` | Owner check |
+| `can_edit_trip(trip_id)` | Owner or editor |
+| `create_trip(...)` | Atomic create: trip + owner + destinations + days; trip currency from first destination |
+
+### Manual test plan (create-trip UX)
+
+1. **Spain solo** — pick Spain → EUR shown → calendar dates → create → Overview  
+2. **US + Canada** — USD then CAD on destinations; Review shows primary USD  
+3. **Manual dates** — type `12/09/2026`; try invalid `31/02/2026`; end before start blocked  
+4. **Country search** — `sp`, `ES`, `united`  
+5. **Same-day transition** — destination A ends on day X, B starts on day X  
+6. Home/Overview still load for authenticated trips  
+7. Expo Go still starts (Google remains lazy / unavailable)
+
+### RLS policies (summary)
+
+- **trips:** members select; creator insert; owner update/delete
+- **trip_destinations / trip_days:** members select; owners/editors write
+- **trip_members:** members select; owner update (no direct insert/delete in 3A — create via RPC)
+- **profiles:** existing own-profile policies + `profiles_select_trip_co_members` for fellow travellers
+
+### App behaviour
+
+- Authenticated Home loads real trips via React Query; Preview keeps mock Midwest data + mock invitations UI.
+- Create-trip wizard: Basics → Destinations → Travellers → Review (4 steps).
+- Group screen lists accepted members + roles (invite UI disabled until 3B).
+- Overview shows live trip header; itinerary/budget/votes extras stay mock-only in Preview.
+- Trip settings shows live basics; owners can delete a trip.
+
+## Authentication (Phase 2)
 
 ### Email
 
-Unchanged from Phase 2A. Always available as a fallback.
+Always available as a fallback.
 
 ### Google (native ID token)
 
-1. `@react-native-google-signin/google-signin` obtains a Google ID token.
-2. The app calls Supabase `signInWithIdToken({ provider: 'google', token })`.
-3. The existing `auth.users` → `profiles` trigger creates the profile on first login.
-4. Empty profile name/avatar fields may be filled from provider metadata; customized values are never overwritten.
-
-**Expo Go:** Google native sign-in does **not** work in Expo Go (native module). Use a **development build**.
-
-**Nonce:** The free Original Google Sign-In module does not expose a custom nonce API. Enable **Skip nonce check** for the Google provider in Supabase when using this native flow (documented by Supabase for Expo).
+Requires a **development build** (not Expo Go). Enable **Skip nonce check** for Google in Supabase.
 
 ### Apple (native ID token)
 
-1. `expo-apple-authentication` presents the official Apple button (iOS only).
-2. A SHA-256 nonce is generated with `expo-crypto`.
-3. The app calls Supabase `signInWithIdToken({ provider: 'apple', token, nonce })`.
-4. Apple’s full name is captured on **first authorization only** and stored without overwriting a customized profile name later.
-
-**Expo Go:** Apple sign-in can be smoke-tested in Expo Go on a physical iOS device. Production and Simulator capability setup need an Apple Developer Program account + `usesAppleSignIn`.
-
-**App Store note:** If you offer Google login, Apple requires Sign in with Apple as an equivalent option before App Store release.
-
-### Identity linking
-
-If a user already has an email account and later signs in with Google using the **same verified email**, Supabase may link identities or reject the login depending on your project’s Auth settings (automatic linking / manual linking). TripApp does **not** merge accounts with insecure client-side logic. Prefer enabling linking in the Supabase dashboard when you need it.
-
-## Google Cloud setup
-
-1. Create a project in [Google Cloud Console](https://console.cloud.google.com/).
-2. Configure the **OAuth consent screen**.
-3. Create OAuth clients:
-   - **Web application** → copy Client ID → `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` and Supabase Google provider Client IDs.
-   - **iOS** → bundle ID `com.tripapp.app` → `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`.
-   - **Android** → package `com.tripapp.app` + SHA-1 fingerprint → `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` (optional in app code; required in Google Cloud).
-4. Rebuild the native app after changing the iOS client ID (config plugin derives `iosUrlScheme`).
-
-### Android SHA-1
-
-```bash
-# Debug keystore example
-keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
-```
-
-Use the SHA-1 in the Google Cloud Android OAuth client.
-
-## Supabase provider setup
-
-### Google
-
-1. **Authentication → Providers → Google** → enable.
-2. Paste the **Web client ID** (and iOS client ID if prompted) into Client IDs.
-3. Leave Client Secret empty for native ID-token-only flows (or follow dashboard guidance if shown).
-4. Enable **Skip nonce check** for native Expo Google Sign-In.
-5. Save.
-
-### Apple
-
-What works in code now without finishing Apple Developer setup:
-
-- Official Apple button UI on iOS when `isAvailableAsync()` is true
-- Secure nonce + `signInWithIdToken` path
-- Graceful “pending configuration” messaging when unavailable
-- Email + Google still work
-
-What you must configure later with Apple Developer Program:
-
-1. App ID `com.tripapp.app` with **Sign in with Apple** capability
-2. Enable Apple provider in **Supabase → Authentication → Providers → Apple**
-3. For **native-only** iOS, Client IDs typically include the App ID / bundle ID audience
-4. Services ID + key + secret are needed for **web OAuth** Apple flows — **not required** for this native-only mobile path
-5. Rebuild with `ios.usesAppleSignIn: true` (already set in `app.config.ts`)
-
-## Development build
-
-Google Sign-In requires a development build:
-
-```bash
-npx expo prebuild
-npx expo run:ios
-# or
-npx expo run:android
-```
-
-Or use EAS Build for a `development` profile. Do not commit generated credentials.
-
-Email auth and development Preview continue to work in Expo Go.
-
-## Manual test plan
-
-1. Email create account / sign in / sign out (regression).
-2. Missing Google env → polished configuration message; no crash.
-3. Google success (dev build) → Home + profile; restart app → session restores.
-4. Google cancel → no error alert.
-5. Apple unavailable → clear pending-configuration message.
-6. Apple available → official button; cancel → no error alert.
-7. Android → no Apple button (fallback control shows pending message); Google + email available.
-8. Preview still development-only.
+Official button on iOS when available. Apple Developer Program setup still required for production.
 
 ## Quality checks
 
@@ -164,10 +159,11 @@ npm run start
 
 ## Styling rules
 
-Unchanged: colocated `*.styles.ts`, theme tokens only, no static inline styles, thin `app/` routes.
+Colocated `*.styles.ts`, theme tokens only, no static inline styles, thin `app/` routes.
 
 ## Security warnings
 
 - Never commit `.env`.
 - Never ship service-role keys or OAuth client secrets in the app.
 - Do not log ID tokens, access tokens, authorization codes, or nonces.
+- Trip access is enforced with Postgres RLS — do not rely on client checks alone.

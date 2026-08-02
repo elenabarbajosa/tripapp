@@ -6,6 +6,8 @@ import { TripCard } from "@/components/TripCard/TripCard";
 import { AppButton } from "@/components/ui/AppButton/AppButton";
 import { AppCard } from "@/components/ui/AppCard/AppCard";
 import { EmptyState } from "@/components/ui/EmptyState/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState/LoadingState";
 import { StatusBadge } from "@/components/ui/StatusBadge/StatusBadge";
 import { branding } from "@/constants/branding";
 import {
@@ -16,20 +18,33 @@ import {
 } from "@/data/mock";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { usePreview } from "@/features/preview/PreviewProvider";
+import { partitionTrips } from "@/features/trips/api";
+import { useMyTripsQuery } from "@/features/trips/hooks";
 import { styles } from "./HomeScreen.styles";
-
-const showEmptyHome = false;
 
 export function HomeScreen() {
   const router = useRouter();
   const { profile, isAuthenticated } = useAuth();
   const { isPreviewActive } = usePreview();
+  const shouldLoadTrips = isAuthenticated && !isPreviewActive;
+  const tripsQuery = useMyTripsQuery(shouldLoadTrips);
 
   const greetingName =
     (isAuthenticated && profile?.displayName) ||
     (isPreviewActive ? mockCurrentUser.displayName : null) ||
     "there";
   const firstName = greetingName.split(" ")[0] ?? greetingName;
+
+  const previewUpcoming = [mockUpcomingTrip];
+  const previewPrevious = mockPreviousTrips;
+
+  const liveTrips = tripsQuery.data ? partitionTrips(tripsQuery.data) : null;
+  const upcoming = isPreviewActive ? previewUpcoming : (liveTrips?.upcoming ?? []);
+  const previous = isPreviewActive ? previewPrevious : (liveTrips?.previous ?? []);
+  const showInvitations = isPreviewActive && mockInvitations.length > 0;
+  const isEmpty =
+    shouldLoadTrips && !tripsQuery.isLoading && !tripsQuery.isError && upcoming.length === 0 && previous.length === 0;
+  const showPreviewOrLoaded = isPreviewActive || (!tripsQuery.isLoading && !tripsQuery.isError);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -39,14 +54,34 @@ export function HomeScreen() {
           <Text style={styles.title}>{branding.productName}</Text>
         </View>
 
-        {showEmptyHome ? (
+        {shouldLoadTrips && tripsQuery.isLoading ? (
+          <LoadingState label="Loading your trips…" />
+        ) : null}
+
+        {shouldLoadTrips && tripsQuery.isError ? (
+          <ErrorState
+            title="Could not load trips"
+            message={
+              tripsQuery.error instanceof Error
+                ? tripsQuery.error.message
+                : "Check your connection and try again."
+            }
+            onRetry={() => {
+              void tripsQuery.refetch();
+            }}
+          />
+        ) : null}
+
+        {isEmpty ? (
           <EmptyState
             title={branding.emptyHomeTitle}
             body={branding.emptyHomeBody}
             actionLabel="Create your first trip"
             onAction={() => router.push("/trips/new/basics")}
           />
-        ) : (
+        ) : null}
+
+        {showPreviewOrLoaded && !isEmpty ? (
           <>
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -58,13 +93,20 @@ export function HomeScreen() {
                   onPress={() => router.push("/trips/new/basics")}
                 />
               </View>
-              <TripCard
-                trip={mockUpcomingTrip}
-                onPress={() => router.push(`/trips/${mockUpcomingTrip.id}/overview`)}
-              />
+              {upcoming.length === 0 ? (
+                <Text style={styles.invitationMeta}>No upcoming trips yet.</Text>
+              ) : (
+                upcoming.map((trip) => (
+                  <TripCard
+                    key={trip.id}
+                    trip={trip}
+                    onPress={() => router.push(`/trips/${trip.id}/overview`)}
+                  />
+                ))
+              )}
             </View>
 
-            {mockInvitations.length > 0 ? (
+            {showInvitations ? (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Invitations</Text>
                 {mockInvitations.map((invitation) => (
@@ -94,14 +136,21 @@ export function HomeScreen() {
               </View>
             ) : null}
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Previous trips</Text>
-              {mockPreviousTrips.map((trip) => (
-                <TripCard key={trip.id} trip={trip} muted onPress={() => undefined} />
-              ))}
-            </View>
+            {previous.length > 0 ? (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Previous trips</Text>
+                {previous.map((trip) => (
+                  <TripCard
+                    key={trip.id}
+                    trip={trip}
+                    muted
+                    onPress={() => router.push(`/trips/${trip.id}/overview`)}
+                  />
+                ))}
+              </View>
+            ) : null}
           </>
-        )}
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

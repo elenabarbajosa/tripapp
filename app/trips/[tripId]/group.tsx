@@ -1,10 +1,3 @@
-import { PlaceholderScreen } from "@/screens/PlaceholderScreen";
+import { GroupScreen } from "@/screens/group/GroupScreen";
 
-export default function GroupRoute() {
-  return (
-    <PlaceholderScreen
-      title="Group"
-      body="Members, invitations, and roles arrive in Phase 3."
-    />
-  );
-}
+export default GroupScreen;

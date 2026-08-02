@@ -48,3 +48,13 @@ jest.mock("@react-native-google-signin/google-signin", () => ({
     Boolean(error && typeof error === "object" && "code" in error),
   isSuccessResponse: (response: { type?: string }) => response?.type === "success",
 }));
+
+jest.mock("@expo/ui/community/datetime-picker", () => {
+  const React = require("react");
+  return {
+    __esModule: true,
+    default: function MockDateTimePicker() {
+      return React.createElement("DateTimePicker");
+    },
+  };
+});

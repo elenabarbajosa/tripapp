@@ -74,3 +74,32 @@ export function formatTimeLabel(time: string): string {
   const hour12 = hours % 12 === 0 ? 12 : hours % 12;
   return `${hour12}:${String(minutes).padStart(2, "0")} ${period}`;
 }
+
+/** Inclusive list of ISO dates from start through end. */
+export function eachISODateInRange(startDate: string, endDate: string): string[] {
+  const start = parseISODate(startDate).getTime();
+  const end = parseISODate(endDate).getTime();
+  if (end < start) {
+    throw new Error("End date must be on or after start date");
+  }
+
+  const dates: string[] = [];
+  for (let cursor = start; cursor <= end; cursor += DAY_MS) {
+    dates.push(toISODate(new Date(cursor)));
+  }
+  return dates;
+}
+
+export function resolveTripPhase(
+  startDate: string,
+  endDate: string,
+  today: string = toISODate(new Date()),
+): "upcoming" | "active" | "completed" {
+  if (today < startDate) {
+    return "upcoming";
+  }
+  if (today > endDate) {
+    return "completed";
+  }
+  return "active";
+}
