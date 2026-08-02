@@ -8,17 +8,33 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { Platform } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 
-import { isSupabaseConfigured } from "@/constants/config";
+import {
+  getGoogleConfigMessage,
+  isGoogleSignInConfigured,
+  isSupabaseConfigured,
+} from "@/constants/config";
 import {
   fetchProfileByUserId,
   getSupabaseClient,
   getSupabaseStatusMessage,
 } from "@/services/supabase";
 import type { ProfileSummary } from "@/types/models";
-import { getAuthErrorMessage, logAuthErrorCategory } from "./authErrors";
+import { isAppleSignInAvailable, signInWithAppleIdToken } from "./appleSignIn";
+import {
+  AuthCancelledError,
+  AuthNotConfiguredError,
+  AuthUnavailableError,
+  getAuthErrorMessage,
+  getSocialAuthErrorMessage,
+  isAuthCancelledError,
+  logAuthErrorCategory,
+  type SocialAuthProvider,
+} from "./authErrors";
 import { buildAuthState } from "./authState";
+import { signInWithGoogleIdToken } from "./googleSignIn";
 
 export interface AuthContextValue {
   session: Session | null;
@@ -29,12 +45,17 @@ export interface AuthContextValue {
   isProfileLoading: boolean;
   isConfigured: boolean;
   configurationMessage: string;
+  isGoogleSignInAvailable: boolean;
+  isAppleSignInAvailable: boolean;
+  socialAuthLoadingProvider: SocialAuthProvider | null;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (input: {
     email: string;
     password: string;
     displayName: string;
   }) => Promise<{ requiresEmailConfirmation: boolean }>;
+  signInWithGoogle: () => Promise<{ cancelled: boolean }>;
+  signInWithApple: () => Promise<{ cancelled: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -46,8 +67,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [profile, setProfile] = useState<ProfileSummary | null>(null);
   const [isInitializing, setIsInitializing] = useState(() => isSupabaseConfigured());
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(false);
+  const [socialAuthLoadingProvider, setSocialAuthLoadingProvider] =
+    useState<SocialAuthProvider | null>(null);
   const profileRequestId = useRef(0);
   const loadedProfileUserId = useRef<string | null>(null);
+  const socialAuthInFlight = useRef(false);
+
+  const googleAvailable = isSupabaseConfigured() && isGoogleSignInConfigured();
 
   const loadProfile = useCallback(async (userId: string) => {
     const client = getSupabaseClient();
@@ -144,6 +171,33 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, [clearProfile, loadProfile]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    void isAppleSignInAvailable().then((available) => {
+      if (isMounted) {
+        setIsAppleAvailable(available);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const beginSocialAuth = useCallback((provider: SocialAuthProvider) => {
+    if (socialAuthInFlight.current) {
+      throw new AuthUnavailableError("Another sign-in attempt is already in progress.");
+    }
+    socialAuthInFlight.current = true;
+    setSocialAuthLoadingProvider(provider);
+  }, []);
+
+  const endSocialAuth = useCallback(() => {
+    socialAuthInFlight.current = false;
+    setSocialAuthLoadingProvider(null);
+  }, []);
+
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     const client = getSupabaseClient();
     if (!client) {
@@ -185,6 +239,52 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     [],
   );
+
+  const signInWithGoogle = useCallback(async () => {
+    if (!googleAvailable) {
+      throw new AuthNotConfiguredError(getGoogleConfigMessage());
+    }
+
+    beginSocialAuth("google");
+    try {
+      await signInWithGoogleIdToken();
+      return { cancelled: false };
+    } catch (error) {
+      if (isAuthCancelledError(error)) {
+        return { cancelled: true };
+      }
+      logAuthErrorCategory("google_sign_in", error);
+      throw new Error(getSocialAuthErrorMessage("google", error));
+    } finally {
+      endSocialAuth();
+    }
+  }, [beginSocialAuth, endSocialAuth, googleAvailable]);
+
+  const signInWithApple = useCallback(async () => {
+    if (Platform.OS !== "ios") {
+      throw new AuthNotConfiguredError("Apple sign-in is only available on iOS.");
+    }
+
+    if (!isAppleAvailable) {
+      throw new AuthNotConfiguredError(
+        "Apple sign-in will be available after Sign in with Apple is configured for this app.",
+      );
+    }
+
+    beginSocialAuth("apple");
+    try {
+      await signInWithAppleIdToken();
+      return { cancelled: false };
+    } catch (error) {
+      if (isAuthCancelledError(error)) {
+        return { cancelled: true };
+      }
+      logAuthErrorCategory("apple_sign_in", error);
+      throw new Error(getSocialAuthErrorMessage("apple", error));
+    } finally {
+      endSocialAuth();
+    }
+  }, [beginSocialAuth, endSocialAuth, isAppleAvailable]);
 
   const signOut = useCallback(async () => {
     const client = getSupabaseClient();
@@ -228,8 +328,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isProfileLoading: snapshot.isProfileLoading,
       isConfigured: isSupabaseConfigured(),
       configurationMessage: getSupabaseStatusMessage(),
+      isGoogleSignInAvailable: googleAvailable,
+      isAppleSignInAvailable: isAppleAvailable,
+      socialAuthLoadingProvider,
       signInWithEmail,
       signUpWithEmail,
+      signInWithGoogle,
+      signInWithApple,
       signOut,
       refreshProfile,
     }),
@@ -240,8 +345,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
       snapshot.isInitializing,
       snapshot.isAuthenticated,
       snapshot.isProfileLoading,
+      googleAvailable,
+      isAppleAvailable,
+      socialAuthLoadingProvider,
       signInWithEmail,
       signUpWithEmail,
+      signInWithGoogle,
+      signInWithApple,
       signOut,
       refreshProfile,
     ],
@@ -257,3 +367,5 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
+
+export { AuthCancelledError };

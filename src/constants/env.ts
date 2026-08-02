@@ -4,6 +4,9 @@ export interface PublicEnv {
   appEnv: AppEnvironment;
   supabaseUrl: string;
   supabasePublishableKey: string;
+  googleWebClientId: string;
+  googleIosClientId: string;
+  googleAndroidClientId: string;
 }
 
 export interface EnvValidationResult {
@@ -36,6 +39,9 @@ export function validatePublicEnv(
 ): EnvValidationResult {
   const supabaseUrl = (env.EXPO_PUBLIC_SUPABASE_URL ?? "").trim();
   const supabasePublishableKey = (env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "").trim();
+  const googleWebClientId = (env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "").trim();
+  const googleIosClientId = (env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "").trim();
+  const googleAndroidClientId = (env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? "").trim();
   const appEnv = resolveAppEnv(env.EXPO_PUBLIC_APP_ENV);
 
   const missing = REQUIRED_SUPABASE_VARS.filter((key) => {
@@ -52,6 +58,9 @@ export function validatePublicEnv(
       appEnv,
       supabaseUrl,
       supabasePublishableKey,
+      googleWebClientId,
+      googleIosClientId,
+      googleAndroidClientId,
     },
     message: isValid
       ? "Public Supabase environment variables are configured."
@@ -61,4 +70,25 @@ export function validatePublicEnv(
 
 export function isDevelopmentEnv(appEnv: AppEnvironment = validatePublicEnv().values.appEnv): boolean {
   return appEnv === "development";
+}
+
+/** Google native sign-in needs at least the Web client ID (and Supabase configured). */
+export function isGoogleSignInConfigured(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): boolean {
+  const result = validatePublicEnv(env);
+  return result.isValid && result.values.googleWebClientId.length > 0;
+}
+
+export function getGoogleConfigMessage(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string {
+  const result = validatePublicEnv(env);
+  if (!result.isValid) {
+    return result.message;
+  }
+  if (!result.values.googleWebClientId) {
+    return "Google sign-in is not configured yet. Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to .env and enable the Google provider in Supabase.";
+  }
+  return "Google sign-in credentials are present.";
 }

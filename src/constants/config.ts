@@ -1,4 +1,9 @@
-import { validatePublicEnv, type AppEnvironment } from "./env";
+import {
+  getGoogleConfigMessage,
+  isGoogleSignInConfigured,
+  validatePublicEnv,
+  type AppEnvironment,
+} from "./env";
 
 const envResult = validatePublicEnv();
 
@@ -6,6 +11,9 @@ export const appConfig = {
   env: envResult.values.appEnv as AppEnvironment,
   supabaseUrl: envResult.values.supabaseUrl,
   supabasePublishableKey: envResult.values.supabasePublishableKey,
+  googleWebClientId: envResult.values.googleWebClientId,
+  googleIosClientId: envResult.values.googleIosClientId,
+  googleAndroidClientId: envResult.values.googleAndroidClientId,
   scheme: "tripapp",
   isDevelopment: envResult.values.appEnv === "development",
 } as const;
@@ -17,3 +25,5 @@ export function isSupabaseConfigured(): boolean {
 export function getSupabaseConfigMessage(): string {
   return envResult.message;
 }
+
+export { isGoogleSignInConfigured, getGoogleConfigMessage };

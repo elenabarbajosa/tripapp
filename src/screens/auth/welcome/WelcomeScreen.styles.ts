@@ -66,4 +66,13 @@ export const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: spacing.md,
   },
+  errorNote: {
+    ...typography.caption,
+    textAlign: "center",
+    color: colors.error,
+  },
+  providerLoading: {
+    marginTop: spacing.sm,
+    alignItems: "center",
+  },
 });

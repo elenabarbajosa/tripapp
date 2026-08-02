@@ -1,25 +1,36 @@
-import { Alert, Text, View } from "react-native";
+import { useState } from "react";
+import { ActivityIndicator, Alert, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
+import { AppleSignInButton } from "@/components/auth/AppleSignInButton/AppleSignInButton";
 import { AppButton } from "@/components/ui/AppButton/AppButton";
 import { branding } from "@/constants/branding";
-import { usePreview } from "@/features/preview/PreviewProvider";
+import { appConfig, getGoogleConfigMessage } from "@/constants/config";
+import { useAuth } from "@/features/auth/AuthProvider";
 import { shouldShowDevPreviewButton } from "@/features/auth/authState";
-import { appConfig } from "@/constants/config";
+import { usePreview } from "@/features/preview/PreviewProvider";
+import { colors } from "@/theme";
 import { styles } from "./WelcomeScreen.styles";
-
-function showComingSoon(provider: "Apple" | "Google") {
-  Alert.alert(
-    `${provider} sign-in`,
-    `${provider} sign-in will be configured in the next authentication step.`,
-  );
-}
 
 export function WelcomeScreen() {
   const router = useRouter();
+  const {
+    signInWithGoogle,
+    signInWithApple,
+    isGoogleSignInAvailable,
+    isAppleSignInAvailable,
+    socialAuthLoadingProvider,
+    isConfigured,
+    configurationMessage,
+  } = useAuth();
   const { enterPreview } = usePreview();
+  const [localError, setLocalError] = useState<string | null>(null);
+
   const showPreview = shouldShowDevPreviewButton(appConfig.isDevelopment);
+  const isBusy = socialAuthLoadingProvider !== null;
+  const googleLoading = socialAuthLoadingProvider === "google";
+  const appleLoading = socialAuthLoadingProvider === "apple";
 
   const handlePreview = () => {
     const started = enterPreview();
@@ -27,6 +38,63 @@ export function WelcomeScreen() {
       return;
     }
     router.replace("/(main)/home");
+  };
+
+  const handleGoogle = async () => {
+    setLocalError(null);
+
+    if (!isConfigured) {
+      Alert.alert("Supabase not configured", configurationMessage);
+      return;
+    }
+
+    if (!isGoogleSignInAvailable) {
+      Alert.alert("Google sign-in", getGoogleConfigMessage());
+      return;
+    }
+
+    try {
+      const result = await signInWithGoogle();
+      if (result.cancelled) {
+        return;
+      }
+      router.replace("/(main)/home");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Google sign-in failed. Please try again.";
+      setLocalError(message);
+      Alert.alert("Google sign-in", message);
+    }
+  };
+
+  const handleApple = async () => {
+    setLocalError(null);
+
+    if (!isConfigured) {
+      Alert.alert("Supabase not configured", configurationMessage);
+      return;
+    }
+
+    if (!isAppleSignInAvailable) {
+      Alert.alert(
+        "Apple sign-in",
+        "Apple sign-in will be configured in the next authentication step once Sign in with Apple is enabled for this app.",
+      );
+      return;
+    }
+
+    try {
+      const result = await signInWithApple();
+      if (result.cancelled) {
+        return;
+      }
+      router.replace("/(main)/home");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Apple sign-in failed. Please try again.";
+      setLocalError(message);
+      Alert.alert("Apple sign-in", message);
+    }
   };
 
   return (
@@ -42,15 +110,30 @@ export function WelcomeScreen() {
         </View>
 
         <View style={styles.actions}>
+          {isAppleSignInAvailable ? (
+            <View>
+              <AppleSignInButton onPress={handleApple} disabled={isBusy} />
+              {appleLoading ? (
+                <View style={styles.providerLoading}>
+                  <ActivityIndicator color={colors.primary} accessibilityLabel="Signing in with Apple" />
+                </View>
+              ) : null}
+            </View>
+          ) : (
+            <AppButton
+              label="Continue with Apple"
+              onPress={handleApple}
+              disabled={isBusy}
+              accessibilityLabel="Continue with Apple"
+            />
+          )}
+
           <AppButton
-            label="Continue with Apple"
-            onPress={() => showComingSoon("Apple")}
-            accessibilityLabel="Continue with Apple"
-          />
-          <AppButton
-            label="Continue with Google"
+            label={googleLoading ? "Connecting to Google…" : "Continue with Google"}
             variant="secondary"
-            onPress={() => showComingSoon("Google")}
+            onPress={handleGoogle}
+            loading={googleLoading}
+            disabled={isBusy}
             accessibilityLabel="Continue with Google"
           />
 
@@ -64,6 +147,7 @@ export function WelcomeScreen() {
             label="Continue with email"
             variant="ghost"
             onPress={() => router.push("/(auth)/email-auth")}
+            disabled={isBusy}
           />
 
           {showPreview ? (
@@ -71,13 +155,16 @@ export function WelcomeScreen() {
               label="Preview app"
               variant="secondary"
               onPress={handlePreview}
+              disabled={isBusy}
             />
           ) : null}
+
+          {localError ? <Text style={styles.errorNote}>{localError}</Text> : null}
 
           <Text style={styles.footerNote}>
             {showPreview
               ? "Preview uses local mock data and is available in development only."
-              : "Sign in with email to continue. Google and Apple arrive next."}
+              : "Sign in with Apple, Google, or email to continue."}
           </Text>
         </View>
       </View>
