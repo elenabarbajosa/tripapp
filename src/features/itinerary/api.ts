@@ -41,6 +41,9 @@ const ACTIVITY_SELECT = `
   end_time,
   location_name,
   address,
+  geoapify_place_id,
+  latitude,
+  longitude,
   notes,
   position,
   created_at,
@@ -62,6 +65,9 @@ export interface CreateTripActivityInput {
   endTime?: string | null;
   locationName?: string | null;
   address?: string | null;
+  geoapifyPlaceId?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   notes?: string | null;
 }
 
@@ -78,6 +84,9 @@ export interface UpdateTripActivityInput {
   endTime?: string | null;
   locationName?: string | null;
   address?: string | null;
+  geoapifyPlaceId?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   notes?: string | null;
 }
 
@@ -268,6 +277,11 @@ export async function createTripActivity(
       end_time: isAllDay ? null : toDbTime(input.endTime),
       location_name: input.locationName?.trim() || null,
       address: input.address?.trim() || null,
+      geoapify_place_id: input.geoapifyPlaceId?.trim() || null,
+      latitude:
+        input.latitude == null || input.longitude == null ? null : input.latitude,
+      longitude:
+        input.latitude == null || input.longitude == null ? null : input.longitude,
       notes: input.notes?.trim() || null,
       position,
     })
@@ -318,6 +332,31 @@ export async function updateTripActivity(
   }
   if (input.address !== undefined) {
     patch.address = input.address?.trim() || null;
+  }
+  if (input.geoapifyPlaceId !== undefined) {
+    patch.geoapify_place_id = input.geoapifyPlaceId?.trim() || null;
+  }
+  if (input.latitude !== undefined || input.longitude !== undefined) {
+    const nextLat = input.latitude !== undefined ? input.latitude : null;
+    const nextLng = input.longitude !== undefined ? input.longitude : null;
+    if (input.latitude !== undefined && input.longitude !== undefined) {
+      if (input.latitude == null || input.longitude == null) {
+        patch.latitude = null;
+        patch.longitude = null;
+      } else {
+        patch.latitude = input.latitude;
+        patch.longitude = input.longitude;
+      }
+    } else {
+      // Keep pair consistency: clearing one clears both when only one is provided as null.
+      patch.latitude = nextLat;
+      patch.longitude = nextLng;
+      if (patch.latitude == null || patch.longitude == null) {
+        patch.latitude = null;
+        patch.longitude = null;
+        patch.geoapify_place_id = patch.geoapify_place_id ?? null;
+      }
+    }
   }
   if (input.notes !== undefined) {
     patch.notes = input.notes?.trim() || null;

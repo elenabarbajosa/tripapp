@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/EmptyState/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState/ErrorState";
 import { IconButton } from "@/components/ui/IconButton/IconButton";
 import { LoadingState } from "@/components/ui/LoadingState/LoadingState";
+import { PlaceAutocompleteField } from "@/components/ui/PlaceAutocompleteField";
 import { ScreenHeader } from "@/components/ui/ScreenHeader/ScreenHeader";
 import { useAuth } from "@/features/auth/AuthProvider";
 import {
@@ -68,6 +69,9 @@ const emptyDefaults: TripActivityFormInput = {
   endTime: null,
   locationName: null,
   address: null,
+  geoapifyPlaceId: null,
+  latitude: null,
+  longitude: null,
   description: null,
   notes: null,
 };
@@ -112,6 +116,20 @@ function ActivityFormFields({
   });
 
   const isAllDay = useWatch({ control: form.control, name: "isAllDay" });
+  const destinationId = useWatch({ control: form.control, name: "destinationId" });
+  const locationName = useWatch({ control: form.control, name: "locationName" });
+  const address = useWatch({ control: form.control, name: "address" });
+  const geoapifyPlaceId = useWatch({ control: form.control, name: "geoapifyPlaceId" });
+  const latitude = useWatch({ control: form.control, name: "latitude" });
+  const longitude = useWatch({ control: form.control, name: "longitude" });
+
+  const countryBias = useMemo(() => {
+    const selected = destinations.find((destination) => destination.id === destinationId);
+    if (selected?.countryCode) {
+      return selected.countryCode;
+    }
+    return destinations[0]?.countryCode ?? null;
+  }, [destinations, destinationId]);
 
   const onSubmit = form.handleSubmit(async (values) => {
     if (isSubmitting) {
@@ -133,6 +151,9 @@ function ActivityFormFields({
           endTime: values.endTime,
           locationName: values.locationName,
           address: values.address,
+          geoapifyPlaceId: values.geoapifyPlaceId,
+          latitude: values.latitude,
+          longitude: values.longitude,
           notes: values.notes,
         });
       } else {
@@ -153,6 +174,9 @@ function ActivityFormFields({
           endTime: values.endTime,
           locationName: values.locationName,
           address: values.address,
+          geoapifyPlaceId: values.geoapifyPlaceId,
+          latitude: values.latitude,
+          longitude: values.longitude,
           notes: values.notes,
         });
       }
@@ -371,31 +395,57 @@ function ActivityFormFields({
       <Controller
         control={form.control}
         name="locationName"
-        render={({ field: { onChange, onBlur, value }, fieldState }) => (
-          <AppTextInput
+        render={({ fieldState }) => (
+          <PlaceAutocompleteField
             label="Location"
-            placeholder="Place name"
-            value={value ?? ""}
-            onChangeText={onChange}
-            onBlur={onBlur}
+            value={locationName ?? ""}
+            address={address ?? ""}
+            geoapifyPlaceId={geoapifyPlaceId ?? null}
+            latitude={latitude ?? null}
+            longitude={longitude ?? null}
+            countryCode={countryBias}
+            language="en"
             errorText={fieldState.error?.message}
-            editable={!isSubmitting}
-          />
-        )}
-      />
-
-      <Controller
-        control={form.control}
-        name="address"
-        render={({ field: { onChange, onBlur, value }, fieldState }) => (
-          <AppTextInput
-            label="Address"
-            placeholder="Street address"
-            value={value ?? ""}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            errorText={fieldState.error?.message}
-            editable={!isSubmitting}
+            disabled={isSubmitting}
+            onManualTextChange={({ locationName: nextName, address: nextAddress, clearProviderMetadata }) => {
+              form.setValue("locationName", nextName, {
+                shouldDirty: true,
+                shouldValidate: false,
+              });
+              if (nextAddress !== undefined) {
+                form.setValue("address", nextAddress, {
+                  shouldDirty: true,
+                  shouldValidate: false,
+                });
+              }
+              if (clearProviderMetadata) {
+                form.setValue("geoapifyPlaceId", null, { shouldDirty: true });
+                form.setValue("latitude", null, { shouldDirty: true });
+                form.setValue("longitude", null, { shouldDirty: true });
+              }
+            }}
+            onPlaceSelected={(suggestion) => {
+              form.setValue("locationName", suggestion.name, {
+                shouldDirty: true,
+                shouldValidate: false,
+              });
+              form.setValue("address", suggestion.formattedAddress, {
+                shouldDirty: true,
+                shouldValidate: false,
+              });
+              form.setValue("geoapifyPlaceId", suggestion.placeId, {
+                shouldDirty: true,
+              });
+              form.setValue("latitude", suggestion.latitude, { shouldDirty: true });
+              form.setValue("longitude", suggestion.longitude, { shouldDirty: true });
+            }}
+            onClearSelection={() => {
+              form.setValue("locationName", null, { shouldDirty: true });
+              form.setValue("address", null, { shouldDirty: true });
+              form.setValue("geoapifyPlaceId", null, { shouldDirty: true });
+              form.setValue("latitude", null, { shouldDirty: true });
+              form.setValue("longitude", null, { shouldDirty: true });
+            }}
           />
         )}
       />
@@ -543,6 +593,9 @@ export function ActivityFormScreen({ mode }: ActivityFormScreenProps) {
       endTime: activity.endTime,
       locationName: activity.locationName,
       address: activity.address,
+      geoapifyPlaceId: activity.geoapifyPlaceId,
+      latitude: activity.latitude,
+      longitude: activity.longitude,
       description: activity.description,
       notes: activity.notes,
     };

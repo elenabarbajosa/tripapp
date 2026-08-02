@@ -348,6 +348,9 @@ export interface Database {
           end_time: string | null;
           location_name: string | null;
           address: string | null;
+          geoapify_place_id: string | null;
+          latitude: number | null;
+          longitude: number | null;
           notes: string | null;
           position: number;
           created_at: string;
@@ -367,6 +370,9 @@ export interface Database {
           end_time?: string | null;
           location_name?: string | null;
           address?: string | null;
+          geoapify_place_id?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           notes?: string | null;
           position?: number;
           created_at?: string;
@@ -386,6 +392,9 @@ export interface Database {
           end_time?: string | null;
           location_name?: string | null;
           address?: string | null;
+          geoapify_place_id?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           notes?: string | null;
           position?: number;
           created_at?: string;

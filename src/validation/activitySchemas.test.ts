@@ -17,6 +17,9 @@ function baseValues(overrides: Record<string, unknown> = {}) {
     endTime: "11:30",
     locationName: "Central Market",
     address: "1 Main St",
+    geoapifyPlaceId: null,
+    latitude: null,
+    longitude: null,
     description: "Try local pastries",
     notes: "",
     ...overrides,
@@ -98,6 +101,40 @@ describe("activitySchemas", () => {
       baseValues({ locationName: "x".repeat(161) }),
     );
     expect(result.success).toBe(false);
+  });
+
+  it("includes provider fields in create/update shaped values", () => {
+    const result = tripActivityFormSchema.safeParse(
+      baseValues({
+        geoapifyPlaceId: "place-abc",
+        latitude: 41.88,
+        longitude: -87.62,
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.geoapifyPlaceId).toBe("place-abc");
+      expect(result.data.latitude).toBe(41.88);
+      expect(result.data.longitude).toBe(-87.62);
+    }
+  });
+
+  it("submits null provider fields for manual locations", () => {
+    const result = tripActivityFormSchema.safeParse(
+      baseValues({
+        locationName: "Friend's apartment",
+        address: "Near the park",
+        geoapifyPlaceId: null,
+        latitude: null,
+        longitude: null,
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.geoapifyPlaceId).toBeNull();
+      expect(result.data.latitude).toBeNull();
+      expect(result.data.longitude).toBeNull();
+    }
   });
 
   it("rejects an invalid category", () => {

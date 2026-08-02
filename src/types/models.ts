@@ -163,6 +163,9 @@ export interface TripActivity {
   endTime: string | null;
   locationName: string | null;
   address: string | null;
+  geoapifyPlaceId: string | null;
+  latitude: number | null;
+  longitude: number | null;
   notes: string | null;
   position: number;
   createdAt: string;

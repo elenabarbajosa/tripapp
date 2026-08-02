@@ -6,7 +6,7 @@ Collaborative travel planning for solo travellers, couples, families, and groups
 
 ## Phase status
 
-**Phase 4A (current):** Day-by-day trip itinerary — activities per trip day, add/edit/delete/reorder, RLS-backed permissions.
+**Phase 4A.1 (current):** Geoapify location autocomplete for itinerary activities (server-side Edge Function; manual fallback).
 
 **Still upcoming (do not start yet)**
 
@@ -62,6 +62,7 @@ Run in order:
 4. `20260802030000_trip_invitations.sql` ← Phase 3B invitations
 5. `20260802040000_fix_trip_members_access.sql` ← Group member load / RLS recursion fix
 6. `20260802050000_trip_itinerary.sql` ← Phase 4A itinerary activities
+7. `20260802060000_activity_places.sql` ← Phase 4A.1 Geoapify place fields
 
 **Option A — Supabase SQL Editor:** run each file in order.
 
@@ -71,7 +72,7 @@ Run in order:
 npx supabase db push
 ```
 
-If CLI login is unavailable, paste `20260802050000_trip_itinerary.sql` into the SQL Editor after the members-access migration.
+If CLI login is unavailable, paste `20260802060000_activity_places.sql` into the SQL Editor after the itinerary migration.
 
 ### Deploy invitation email Edge Function (optional)
 
@@ -244,6 +245,54 @@ npx supabase db push
 # Or paste supabase/migrations/20260802050000_trip_itinerary.sql in the SQL Editor
 ```
 
+## Phase 4A.1 — Geoapify location autocomplete
+
+### Scope
+
+- Location autocomplete on Add / Edit Activity via Geoapify Address Autocomplete
+- One authenticated Supabase Edge Function proxies Geoapify (API key never in the app)
+- Manual location entry always remains available
+- No map, markers, directions, nearby recommendations, or bookings in this phase
+
+### Architecture
+
+```text
+Activity form → getPlaceSuggestions() → supabase.functions.invoke("geoapify-autocomplete")
+  → GET https://api.geoapify.com/v1/geocode/autocomplete
+```
+
+The Geoapify API key stays in Edge Function secrets so it is never shipped in Expo/`EXPO_PUBLIC_*`/Git.
+
+### Stored place fields
+
+Added on `trip_activities` (nullable; `location_name` / `address` retained for manual entry):
+
+| Column | Notes |
+| --- | --- |
+| `geoapify_place_id` | Provider place id (max 256) |
+| `latitude` / `longitude` | WGS84; both null or both set |
+
+Editing location name or address after a selection clears provider metadata so coordinates never drift from visible text.
+
+### Client behaviour
+
+- Search starts at 3+ characters
+- 400 ms debounce, in-memory session cache, stale-response ignore, max 5 suggestions
+- Destination country code used as optional Geoapify **bias** only
+- Attribution: **Powered by Geoapify** under visible suggestions
+
+### Deploy Edge Function + secret
+
+```bash
+npx supabase db push
+# or paste supabase/migrations/20260802060000_activity_places.sql
+
+npx supabase functions deploy geoapify-autocomplete
+npx supabase secrets set GEOAPIFY_API_KEY=YOUR_GEOAPIFY_KEY_HERE
+```
+
+Do **not** deploy with `--no-verify-jwt`. Do **not** put the key in app `.env` or `EXPO_PUBLIC_*`.
+
 ## Manual test plan
 
 ### Create trip
@@ -286,6 +335,15 @@ Decline, revoke, expire, email mismatch, already accepted / already member.
 7. Sign in as viewer on the same trip → can read; no add/edit/delete/reorder controls  
 8. Unrelated account → cannot open itinerary data for that trip  
 
+### Location autocomplete (Phase 4A.1)
+
+1. Deploy `geoapify-autocomplete` and set `GEOAPIFY_API_KEY`  
+2. Add activity → type “Art Institute of Chicago” → suggestions appear after 3 characters  
+3. Select a suggestion → location name, address, and coordinates populate  
+4. Save → reopen edit → selected place state restored  
+5. Edit the location text → place id / lat / lng clear; save as manual location  
+6. With secret unset or function stopped → friendly message; manual entry still works  
+
 ## Quality checks
 
 ```bash
@@ -313,6 +371,8 @@ Colocated `*.styles.ts`, theme tokens only, no static inline styles, thin `app/`
 - Share-link Home cards are not listed (email-matched only); open the link to accept  
 - Expired invitations are marked lazily on read/mutation  
 - Preview mode continues to use mock invitations only  
-- **Create-trip date picker / validation UX** still needs a dedicated later fix (deferred; not addressed in Phase 4A)  
+- **Create-trip date picker / validation UX** still needs a dedicated later fix (deferred; not addressed in Phase 4A / 4A.1)  
 - Itinerary reorder uses Move Up / Move Down only (no drag-and-drop in this phase)  
-- Phase 4B+ features (flights, bookings, expenses, packing, ideas, maps, etc.) are not started  
+- Phase 4A.1 has **no visible map**, directions, or nearby recommendations  
+- Place search quality depends on Geoapify / OpenStreetMap data  
+- Bookings and later itinerary-adjacent features are not started  

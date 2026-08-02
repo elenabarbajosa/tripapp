@@ -63,6 +63,32 @@ const destinationIdSchema = z
     ]),
   );
 
+const optionalLatitude = z
+  .union([z.number(), z.null(), z.undefined()])
+  .transform((value) => (value == null || Number.isNaN(value) ? null : value))
+  .pipe(
+    z.union([
+      z.null(),
+      z
+        .number()
+        .min(-90, "Latitude must be between -90 and 90")
+        .max(90, "Latitude must be between -90 and 90"),
+    ]),
+  );
+
+const optionalLongitude = z
+  .union([z.number(), z.null(), z.undefined()])
+  .transform((value) => (value == null || Number.isNaN(value) ? null : value))
+  .pipe(
+    z.union([
+      z.null(),
+      z
+        .number()
+        .min(-180, "Longitude must be between -180 and 180")
+        .max(180, "Longitude must be between -180 and 180"),
+    ]),
+  );
+
 export const tripActivityFormSchema = z
   .object({
     title: z
@@ -80,14 +106,16 @@ export const tripActivityFormSchema = z
     endTime: timeFieldSchema,
     locationName: optionalNullableText(160, "Location name"),
     address: optionalNullableText(240, "Address"),
+    geoapifyPlaceId: optionalNullableText(256, "Place id"),
+    latitude: optionalLatitude,
+    longitude: optionalLongitude,
     description: optionalNullableText(2000, "Description"),
     notes: optionalNullableText(2000, "Notes"),
   })
   .superRefine((values, ctx) => {
     if (values.isAllDay) {
-      return;
-    }
-    if (values.startTime != null && values.endTime != null) {
+      // continue to coordinate checks
+    } else if (values.startTime != null && values.endTime != null) {
       try {
         if (compareTimes(values.endTime, values.startTime) < 0) {
           ctx.addIssue({
@@ -104,12 +132,36 @@ export const tripActivityFormSchema = z
         });
       }
     }
+
+    const hasLat = values.latitude != null;
+    const hasLng = values.longitude != null;
+    if (hasLat !== hasLng) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Latitude and longitude must both be set or both be empty",
+        path: hasLat ? ["longitude"] : ["latitude"],
+      });
+    }
+
+    if (!hasLat && !hasLng && values.geoapifyPlaceId != null) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Place metadata is incomplete",
+        path: ["geoapifyPlaceId"],
+      });
+    }
   })
-  .transform((values) => ({
-    ...values,
-    startTime: values.isAllDay ? null : values.startTime,
-    endTime: values.isAllDay ? null : values.endTime,
-  }));
+  .transform((values) => {
+    const hasPair = values.latitude != null && values.longitude != null;
+    return {
+      ...values,
+      startTime: values.isAllDay ? null : values.startTime,
+      endTime: values.isAllDay ? null : values.endTime,
+      geoapifyPlaceId: hasPair ? values.geoapifyPlaceId : null,
+      latitude: hasPair ? values.latitude : null,
+      longitude: hasPair ? values.longitude : null,
+    };
+  });
 
 export const createActivitySchema = tripActivityFormSchema;
 export const updateActivitySchema = tripActivityFormSchema;
