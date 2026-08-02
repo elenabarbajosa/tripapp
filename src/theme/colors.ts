@@ -34,11 +34,15 @@ export const colors = {
   skeleton: "#E2E8F0",
   skeletonHighlight: "#F1F5F9",
 
-  // Activity category accents
+  // Activity category accents (mock ActivityCategory + TripActivityCategory)
   flight: "#2563EB",
   accommodation: "#7C3AED",
   restaurant: "#EA580C",
   activity: "#0D9488",
+  sightseeing: "#0891B2",
+  food: "#C2410C",
+  nightlife: "#BE185D",
+  shopping: "#DB2777",
   transport: "#0369A1",
   freeTime: "#64748B",
   note: "#475569",

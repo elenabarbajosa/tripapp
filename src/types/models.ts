@@ -139,6 +139,50 @@ export interface TripDay {
   activities: ActivityItem[];
 }
 
+/** Real itinerary category (Phase 4A). Distinct from mock ActivityCategory. */
+export type TripActivityCategory =
+  | "activity"
+  | "sightseeing"
+  | "food"
+  | "nightlife"
+  | "shopping"
+  | "transport"
+  | "other";
+
+export interface TripActivity {
+  id: string;
+  tripId: string;
+  tripDayId: string;
+  destinationId: string | null;
+  createdBy: string;
+  title: string;
+  description: string | null;
+  category: TripActivityCategory;
+  isAllDay: boolean;
+  startTime: string | null; // HH:mm
+  endTime: string | null;
+  locationName: string | null;
+  address: string | null;
+  notes: string | null;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+  destinationCity?: string | null;
+}
+
+export interface TripDaySummary {
+  id: string;
+  tripId: string;
+  date: string; // YYYY-MM-DD
+  label: string | null;
+  destinationId: string | null;
+  destinationCity: string | null;
+}
+
+export interface TripDayWithActivities extends TripDaySummary {
+  activities: TripActivity[];
+}
+
 export interface BookingSummary {
   id: string;
   type: "flight" | "accommodation" | "train" | "rental_car" | "restaurant" | "ticket" | "other";

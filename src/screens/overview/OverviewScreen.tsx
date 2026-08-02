@@ -121,7 +121,7 @@ export function OverviewScreen() {
             <Text style={styles.nextActivityMeta}>
               {useMockExtras
                 ? "No upcoming activity yet."
-                : "Itinerary activities arrive in a later phase."}
+                : "Add plans in Itinerary"}
             </Text>
           )}
         </AppCard>

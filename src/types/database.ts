@@ -1,5 +1,5 @@
 /**
- * Hand-maintained Supabase Database types for Phase 3A/3B.
+ * Hand-maintained Supabase Database types for Phase 3A/3B/4A.
  *
  * Later: replace this file with output from
  * `npx supabase gen types typescript --project-id <ref> > src/types/database.ts`
@@ -16,6 +16,14 @@ export type TripInvitationStatus =
   | "declined"
   | "revoked"
   | "expired";
+export type TripActivityCategory =
+  | "activity"
+  | "sightseeing"
+  | "food"
+  | "nightlife"
+  | "shopping"
+  | "transport"
+  | "other";
 
 
 export interface Database {
@@ -325,6 +333,95 @@ export interface Database {
           },
         ];
       };
+      trip_activities: {
+        Row: {
+          id: string;
+          trip_id: string;
+          trip_day_id: string;
+          destination_id: string | null;
+          created_by: string;
+          title: string;
+          description: string | null;
+          category: TripActivityCategory;
+          is_all_day: boolean;
+          start_time: string | null;
+          end_time: string | null;
+          location_name: string | null;
+          address: string | null;
+          notes: string | null;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          trip_id: string;
+          trip_day_id: string;
+          destination_id?: string | null;
+          created_by: string;
+          title: string;
+          description?: string | null;
+          category?: TripActivityCategory;
+          is_all_day?: boolean;
+          start_time?: string | null;
+          end_time?: string | null;
+          location_name?: string | null;
+          address?: string | null;
+          notes?: string | null;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          trip_id?: string;
+          trip_day_id?: string;
+          destination_id?: string | null;
+          created_by?: string;
+          title?: string;
+          description?: string | null;
+          category?: TripActivityCategory;
+          is_all_day?: boolean;
+          start_time?: string | null;
+          end_time?: string | null;
+          location_name?: string | null;
+          address?: string | null;
+          notes?: string | null;
+          position?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "trip_activities_trip_id_fkey";
+            columns: ["trip_id"];
+            isOneToOne: false;
+            referencedRelation: "trips";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "trip_activities_trip_day_id_fkey";
+            columns: ["trip_day_id"];
+            isOneToOne: false;
+            referencedRelation: "trip_days";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "trip_activities_destination_id_fkey";
+            columns: ["destination_id"];
+            isOneToOne: false;
+            referencedRelation: "trip_destinations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "trip_activities_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -478,10 +575,27 @@ export interface Database {
           member_updated_at: string;
         }[];
       };
+      trip_day_belongs_to_trip: {
+        Args: { p_trip_day_id: string; p_trip_id: string };
+        Returns: boolean;
+      };
+      trip_destination_belongs_to_trip: {
+        Args: { p_destination_id: string; p_trip_id: string };
+        Returns: boolean;
+      };
+      reorder_trip_activities: {
+        Args: {
+          p_trip_id: string;
+          p_trip_day_id: string;
+          p_activity_ids: string[];
+        };
+        Returns: undefined;
+      };
     };
     Enums: {
       trip_member_role: TripMemberRole;
       trip_invitation_status: TripInvitationStatus;
+      trip_activity_category: TripActivityCategory;
     };
     CompositeTypes: Record<string, never>;
   };
@@ -496,3 +610,4 @@ export type TripDestinationRow = Database["public"]["Tables"]["trip_destinations
 export type TripDayRow = Database["public"]["Tables"]["trip_days"]["Row"];
 export type TripMemberRow = Database["public"]["Tables"]["trip_members"]["Row"];
 export type TripInvitationRow = Database["public"]["Tables"]["trip_invitations"]["Row"];
+export type TripActivityRow = Database["public"]["Tables"]["trip_activities"]["Row"];

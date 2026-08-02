@@ -71,6 +71,31 @@ export function canDeleteTrip(role: MemberRole | null | undefined): boolean {
   return role === "owner";
 }
 
+/** Any accepted member may view the itinerary. */
+export function canViewItinerary(role: MemberRole | null | undefined): boolean {
+  return canViewTrip(role);
+}
+
+/** Alias for {@link canEditTripContent}. */
+export function canCreateActivity(role: MemberRole | null | undefined): boolean {
+  return canEditTripContent(role);
+}
+
+/** Alias for {@link canEditTripContent}. */
+export function canEditActivity(role: MemberRole | null | undefined): boolean {
+  return canEditTripContent(role);
+}
+
+/** Alias for {@link canEditTripContent}. */
+export function canDeleteActivity(role: MemberRole | null | undefined): boolean {
+  return canEditTripContent(role);
+}
+
+/** Alias for {@link canEditTripContent}. */
+export function canReorderActivities(role: MemberRole | null | undefined): boolean {
+  return canEditTripContent(role);
+}
+
 export function roleLabel(role: MemberRole): string {
   switch (role) {
     case "owner":

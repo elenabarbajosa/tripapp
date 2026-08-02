@@ -1,6 +1,9 @@
 import {
   canChangeMemberRoles,
+  canCreateActivity,
+  canDeleteActivity,
   canDeleteTrip,
+  canEditActivity,
   canEditTripContent,
   canInviteMembers,
   canLeaveTrip,
@@ -8,8 +11,10 @@ import {
   canManageTripSettings,
   canRemoveMember,
   canRemoveMembers,
+  canReorderActivities,
   canRevokeInvitation,
   canTransferOwnership,
+  canViewItinerary,
   canViewTrip,
   roleLabel,
 } from "@/features/trips/permissions";
@@ -60,5 +65,25 @@ describe("trip permissions", () => {
     expect(roleLabel("owner")).toBe("Owner");
     expect(roleLabel("editor")).toBe("Editor");
     expect(roleLabel("viewer")).toBe("Viewer");
+  });
+
+  it("grants itinerary view to all accepted roles", () => {
+    expect(canViewItinerary("owner")).toBe(true);
+    expect(canViewItinerary("editor")).toBe(true);
+    expect(canViewItinerary("viewer")).toBe(true);
+    expect(canViewItinerary(null)).toBe(false);
+  });
+
+  it("limits itinerary mutations to owners and editors", () => {
+    expect(canCreateActivity("owner")).toBe(true);
+    expect(canCreateActivity("editor")).toBe(true);
+    expect(canCreateActivity("viewer")).toBe(false);
+    expect(canEditActivity("editor")).toBe(true);
+    expect(canEditActivity("viewer")).toBe(false);
+    expect(canDeleteActivity("owner")).toBe(true);
+    expect(canDeleteActivity("viewer")).toBe(false);
+    expect(canReorderActivities("editor")).toBe(true);
+    expect(canReorderActivities("viewer")).toBe(false);
+    expect(canReorderActivities(null)).toBe(false);
   });
 });

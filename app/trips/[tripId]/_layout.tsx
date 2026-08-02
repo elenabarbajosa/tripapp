@@ -11,6 +11,8 @@ export default function TripLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="activities/new" />
+      <Stack.Screen name="activities/[activityId]/edit" />
       <Stack.Screen name="bookings" />
       <Stack.Screen name="expenses" />
       <Stack.Screen name="packing" />

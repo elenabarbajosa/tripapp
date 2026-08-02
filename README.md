@@ -6,11 +6,12 @@ Collaborative travel planning for solo travellers, couples, families, and groups
 
 ## Phase status
 
-**Phase 3B (current):** Trip invitations, share links, deep-link accept/decline, member roles, removals, leave trip, and ownership transfer.
+**Phase 4A (current):** Day-by-day trip itinerary — activities per trip day, add/edit/delete/reorder, RLS-backed permissions.
 
 **Still upcoming (do not start yet)**
 
-- Activities, bookings, flights, expenses, packing lists, ideas, voting, maps
+- Flights, accommodation bookings, general bookings, expenses, packing lists, ideas/voting, maps
+- Notifications, offline mode, AI recommendations
 - Ads, paywalls, subscriptions, social features
 
 ## Stack
@@ -60,6 +61,7 @@ Run in order:
 3. `20260802020000_destination_currency.sql`
 4. `20260802030000_trip_invitations.sql` ← Phase 3B invitations
 5. `20260802040000_fix_trip_members_access.sql` ← Group member load / RLS recursion fix
+6. `20260802050000_trip_itinerary.sql` ← Phase 4A itinerary activities
 
 **Option A — Supabase SQL Editor:** run each file in order.
 
@@ -69,7 +71,7 @@ Run in order:
 npx supabase db push
 ```
 
-If CLI login is unavailable, paste `20260802040000_fix_trip_members_access.sql` into the SQL Editor after the invitations migration.
+If CLI login is unavailable, paste `20260802050000_trip_itinerary.sql` into the SQL Editor after the members-access migration.
 
 ### Deploy invitation email Edge Function (optional)
 
@@ -182,6 +184,66 @@ Deep link scheme: `tripapp://invite/{token}` (or `EXPO_PUBLIC_INVITATION_BASE_UR
 
 `canInviteMembers`, `canManageMemberRoles`, `canRemoveMember`, `canTransferOwnership`, `canLeaveTrip`, `canRevokeInvitation` — UI only; RLS/RPCs are the real security layer.
 
+## Phase 4A — Day-by-day itinerary
+
+### Scope
+
+- View trip days and activities for a selected day
+- Create, edit, delete activities (owner/editor)
+- Reorder within a day via Move Up / Move Down (no drag-and-drop dependency)
+- Viewer read-only; unrelated users have no access (RLS)
+
+### Activity schema (`trip_activities`)
+
+| Column | Notes |
+| --- | --- |
+| `trip_id` / `trip_day_id` | Day must belong to the same trip |
+| `destination_id` | Optional; must belong to the same trip when set |
+| `category` | `activity`, `sightseeing`, `food`, `nightlife`, `shopping`, `transport`, `other` |
+| `is_all_day` / `start_time` / `end_time` | All-day clears times; timed may omit end; end ≥ start |
+| `position` | Manual order within the day |
+
+Helpers: `trip_day_belongs_to_trip`, `trip_destination_belongs_to_trip`  
+RPC: `reorder_trip_activities(p_trip_id, p_trip_day_id, p_activity_ids)`
+
+### Permissions
+
+| Role | View | Create / edit / delete / reorder |
+| --- | --- | --- |
+| Owner | Yes | Yes |
+| Editor | Yes | Yes |
+| Viewer | Yes | No |
+| Unrelated | No | No |
+
+Client helpers: `canViewItinerary`, `canCreateActivity`, `canEditActivity`, `canDeleteActivity`, `canReorderActivities` — presentation only. RLS remains authoritative.
+
+### Ordering rule
+
+Within a day, activities sort as:
+
+1. All-day activities first  
+2. Then by `start_time` ascending (null start times last among timed)  
+3. Then by `position` ascending  
+4. Then by `created_at` ascending (stable fallback)
+
+### Routes
+
+| Route | Purpose |
+| --- | --- |
+| `app/trips/[tripId]/(tabs)/itinerary.tsx` | Itinerary tab |
+| `app/trips/[tripId]/activities/new.tsx` | Add activity |
+| `app/trips/[tripId]/activities/[activityId]/edit.tsx` | Edit activity |
+
+Navigation always passes explicit `{ tripId }` (and `activityId` / `dayId` when needed). Invalid UUIDs show a local error without calling Supabase.
+
+### Migration
+
+```bash
+# After earlier migrations are applied:
+npx supabase db push
+# Or paste supabase/migrations/20260802050000_trip_itinerary.sql in the SQL Editor
+```
+
 ## Manual test plan
 
 ### Create trip
@@ -213,6 +275,17 @@ Deep link scheme: `tripapp://invite/{token}` (or `EXPO_PUBLIC_INVITATION_BASE_UR
 
 Decline, revoke, expire, email mismatch, already accepted / already member.
 
+### Itinerary (Phase 4A)
+
+1. Open a trip → **Itinerary** tab  
+2. Confirm day chips load from real `trip_days`; today is selected when inside the trip, otherwise day 1  
+3. Owner/editor: **Add activity** → fill title, day, optional times → save → appears on the day  
+4. Edit activity → change category/location → save  
+5. Move Up / Down → order persists after refresh  
+6. Delete → confirmation required → activity removed  
+7. Sign in as viewer on the same trip → can read; no add/edit/delete/reorder controls  
+8. Unrelated account → cannot open itinerary data for that trip  
+
 ## Quality checks
 
 ```bash
@@ -240,3 +313,6 @@ Colocated `*.styles.ts`, theme tokens only, no static inline styles, thin `app/`
 - Share-link Home cards are not listed (email-matched only); open the link to accept  
 - Expired invitations are marked lazily on read/mutation  
 - Preview mode continues to use mock invitations only  
+- **Create-trip date picker / validation UX** still needs a dedicated later fix (deferred; not addressed in Phase 4A)  
+- Itinerary reorder uses Move Up / Move Down only (no drag-and-drop in this phase)  
+- Phase 4B+ features (flights, bookings, expenses, packing, ideas, maps, etc.) are not started  
