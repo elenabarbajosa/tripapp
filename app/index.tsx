@@ -1,9 +1,24 @@
 import { Redirect } from "expo-router";
 
+import { AuthBootstrap } from "@/components/ui/AuthBootstrap/AuthBootstrap";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { usePreview } from "@/features/preview/PreviewProvider";
+
 /**
- * Phase 1 entry: land on welcome.
- * Phase 2 will redirect based on auth session.
+ * Anchor route for Expo Router protected navigation.
+ * Resolves after session restoration to avoid auth flashes.
  */
 export default function Index() {
+  const { isInitializing, isAuthenticated } = useAuth();
+  const { isPreviewActive } = usePreview();
+
+  if (isInitializing) {
+    return <AuthBootstrap />;
+  }
+
+  if (isAuthenticated || isPreviewActive) {
+    return <Redirect href="/(main)/home" />;
+  }
+
   return <Redirect href="/(auth)/welcome" />;
 }

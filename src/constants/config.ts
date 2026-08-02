@@ -1,13 +1,19 @@
+import { validatePublicEnv, type AppEnvironment } from "./env";
+
+const envResult = validatePublicEnv();
+
 export const appConfig = {
-  env: (process.env.EXPO_PUBLIC_APP_ENV ?? "development") as
-    | "development"
-    | "staging"
-    | "production",
-  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? "",
-  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
+  env: envResult.values.appEnv as AppEnvironment,
+  supabaseUrl: envResult.values.supabaseUrl,
+  supabasePublishableKey: envResult.values.supabasePublishableKey,
   scheme: "tripapp",
+  isDevelopment: envResult.values.appEnv === "development",
 } as const;
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(appConfig.supabaseUrl && appConfig.supabaseAnonKey);
+  return envResult.isValid;
+}
+
+export function getSupabaseConfigMessage(): string {
+  return envResult.message;
 }

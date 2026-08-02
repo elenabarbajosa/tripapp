@@ -1,2 +1,10 @@
-// Jest setup for TripApp unit tests.
-// Matchers from @testing-library/react-native are available when rendering components.
+/* eslint-disable @typescript-eslint/no-require-imports -- Jest mock factories require sync require() */
+jest.mock("@react-native-async-storage/async-storage", () =>
+  require("@react-native-async-storage/async-storage/jest/async-storage-mock"),
+);
+
+jest.mock("expo-secure-store", () => ({
+  getItemAsync: jest.fn(async () => null),
+  setItemAsync: jest.fn(async () => undefined),
+  deleteItemAsync: jest.fn(async () => undefined),
+}));

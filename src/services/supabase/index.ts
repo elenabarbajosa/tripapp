@@ -1,1 +1,8 @@
-export { getSupabaseClient, getSupabaseStatusMessage } from "./client";
+export {
+  getSupabaseClient,
+  getSupabaseStatusMessage,
+  requireSupabaseClient,
+  stopSupabaseAuthLifecycle,
+} from "./client";
+export type { TripAppSupabaseClient } from "./client";
+export { fetchProfileByUserId, mapProfileRow } from "./profiles";

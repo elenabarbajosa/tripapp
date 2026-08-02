@@ -1,14 +1,17 @@
 import { StyleSheet } from "react-native";
-import { colors, spacing, typography } from "@/theme";
+import { colors, radii, spacing, typography } from "@/theme";
 
 export const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  container: {
+  flex: {
     flex: 1,
-    padding: spacing.xxl,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.xxl,
+    paddingBottom: spacing.massive,
     gap: spacing.xl,
   },
   title: {
@@ -20,5 +23,28 @@ export const styles = StyleSheet.create({
   },
   form: {
     gap: spacing.lg,
+  },
+  errorBanner: {
+    ...typography.body,
+    color: colors.error,
+    backgroundColor: colors.errorSoft,
+    padding: spacing.md,
+    borderRadius: radii.md,
+  },
+  switchRow: {
+    gap: spacing.sm,
+    alignItems: "center",
+  },
+  switchPrompt: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+  configMessage: {
+    ...typography.body,
+    color: colors.warning,
+    backgroundColor: colors.warningSoft,
+    padding: spacing.md,
+    borderRadius: radii.md,
   },
 });

@@ -14,18 +14,28 @@ import {
   mockPreviousTrips,
   mockUpcomingTrip,
 } from "@/data/mock";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { usePreview } from "@/features/preview/PreviewProvider";
 import { styles } from "./HomeScreen.styles";
 
 const showEmptyHome = false;
 
 export function HomeScreen() {
   const router = useRouter();
+  const { profile, isAuthenticated } = useAuth();
+  const { isPreviewActive } = usePreview();
+
+  const greetingName =
+    (isAuthenticated && profile?.displayName) ||
+    (isPreviewActive ? mockCurrentUser.displayName : null) ||
+    "there";
+  const firstName = greetingName.split(" ")[0] ?? greetingName;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerBlock}>
-          <Text style={styles.greeting}>Welcome back, {mockCurrentUser.displayName.split(" ")[0]}</Text>
+          <Text style={styles.greeting}>Welcome back, {firstName}</Text>
           <Text style={styles.title}>{branding.productName}</Text>
         </View>
 

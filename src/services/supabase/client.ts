@@ -1,68 +1,86 @@
 import "react-native-url-polyfill/auto";
 
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import * as SecureStore from "expo-secure-store";
-import { Platform } from "react-native";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { AppState, type AppStateStatus, type NativeEventSubscription } from "react-native";
 
 import { appConfig, isSupabaseConfigured } from "@/constants/config";
+import type { Database } from "@/types/database";
+import { LargeSecureStore } from "./storage";
+
+export type TripAppSupabaseClient = SupabaseClient<Database>;
+
+let client: TripAppSupabaseClient | null = null;
+let appStateSubscription: NativeEventSubscription | null = null;
+let appStateListenerRegistered = false;
+
+function handleAppStateChange(status: AppStateStatus): void {
+  if (!client) {
+    return;
+  }
+
+  if (status === "active") {
+    void client.auth.startAutoRefresh();
+  } else {
+    void client.auth.stopAutoRefresh();
+  }
+}
+
+function ensureAppStateListener(): void {
+  if (appStateListenerRegistered) {
+    return;
+  }
+
+  appStateSubscription = AppState.addEventListener("change", handleAppStateChange);
+  appStateListenerRegistered = true;
+
+  if (AppState.currentState === "active" && client) {
+    void client.auth.startAutoRefresh();
+  }
+}
 
 /**
- * SecureStore adapter for Supabase Auth session persistence.
- * Phase 1: client skeleton only — no auth flows yet.
+ * Returns the shared Supabase client, or null when public env vars are missing.
+ * Never creates a pretend client. Call sites must handle the null case.
  */
-const ExpoSecureStoreAdapter = {
-  getItem: (key: string) => {
-    if (Platform.OS === "web") {
-      return Promise.resolve(
-        typeof localStorage === "undefined" ? null : localStorage.getItem(key),
-      );
-    }
-    return SecureStore.getItemAsync(key);
-  },
-  setItem: (key: string, value: string) => {
-    if (Platform.OS === "web") {
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(key, value);
-      }
-      return Promise.resolve();
-    }
-    return SecureStore.setItemAsync(key, value);
-  },
-  removeItem: (key: string) => {
-    if (Platform.OS === "web") {
-      if (typeof localStorage !== "undefined") {
-        localStorage.removeItem(key);
-      }
-      return Promise.resolve();
-    }
-    return SecureStore.deleteItemAsync(key);
-  },
-};
-
-let client: SupabaseClient | null = null;
-
-export function getSupabaseClient(): SupabaseClient | null {
+export function getSupabaseClient(): TripAppSupabaseClient | null {
   if (!isSupabaseConfigured()) {
     return null;
   }
 
   if (!client) {
-    client = createClient(appConfig.supabaseUrl, appConfig.supabaseAnonKey, {
+    client = createClient<Database>(appConfig.supabaseUrl, appConfig.supabasePublishableKey, {
       auth: {
-        storage: ExpoSecureStoreAdapter,
+        storage: new LargeSecureStore(),
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
       },
     });
+    ensureAppStateListener();
   }
 
   return client;
+}
+
+/** Test / teardown helper — removes the AppState listener if registered. */
+export function stopSupabaseAuthLifecycle(): void {
+  appStateSubscription?.remove();
+  appStateSubscription = null;
+  appStateListenerRegistered = false;
 }
 
 export function getSupabaseStatusMessage(): string {
   if (isSupabaseConfigured()) {
     return "Supabase client is configured.";
   }
-  return "Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to continue in Phase 2.";
+  return "Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY to continue.";
+}
+
+/** @deprecated Prefer getSupabaseClient(); kept for clarity in call sites that expect a throw. */
+export function requireSupabaseClient(): TripAppSupabaseClient {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error(getSupabaseStatusMessage());
+  }
+  return supabase;
 }
