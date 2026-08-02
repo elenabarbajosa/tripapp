@@ -6,13 +6,14 @@ Collaborative travel planning for solo travellers, couples, families, and groups
 
 ## Phase status
 
-**Phase 4 complete (current):** Itinerary, Geoapify places, bookings, expenses, packing, and ideas/voting.
+**Phase 5A (current):** Interactive trip Map tab (MapLibre + Geoapify tiles), destination geocoding cache, filters, and external directions.
 
-**Still upcoming (do not start yet — Phase 5+)**
+**Still upcoming (do not start yet — Phase 5B+)**
 
 - Live airline / hotel / train / restaurant provider APIs
-- Maps, directions, push notifications, offline mode
-- AI recommendations, monetization, social profiles / public feeds
+- Turn-by-turn navigation, live traffic, user-location tracking
+- Offline map downloads, nearby recommendations, public trip maps
+- Push notifications, AI recommendations, monetization, social profiles / public feeds
 
 ## Stack
 
@@ -67,6 +68,7 @@ Run in order:
 9. `20260802080000_trip_expenses.sql` ← Phase 4C expenses + settlements
 10. `20260802090000_trip_packing.sql` ← Phase 4D packing
 11. `20260802100000_trip_ideas.sql` ← Phase 4E ideas + voting
+12. `20260802110000_destination_map_coordinates.sql` ← Phase 5A destination map cache
 
 **Option A — Supabase SQL Editor:** run each file in order.
 
@@ -445,6 +447,84 @@ npx supabase db push
 # or paste supabase/migrations/20260802100000_trip_ideas.sql
 ```
 
+## Phase 5A — Interactive trip maps
+
+Replaces the placeholder **Map** trip tab (Overview → Itinerary → **Map** → More). There is no second Maps entry under More.
+
+### Architecture
+
+- Native map: `@maplibre/maplibre-react-native` **v11** (`Map`, `Camera`, `GeoJSONSource`, `Layer`)
+- Tiles: Geoapify MapLibre style `osm-bright-grey` via **`EXPO_PUBLIC_GEOAPIFY_MAP_KEY`** (client-visible map-tiles key only)
+- Autocomplete / destination geocoding continues to use the private Edge secret **`GEOAPIFY_API_KEY`** — never reuse it as the public map key
+- Does **not** run in Expo Go — rebuild the development client after installing MapLibre
+
+### Data sources
+
+Map points come from real Supabase data:
+
+- Trip destinations (geocoded + cached)
+- Itinerary activities with coordinates
+- Bookings with coordinates
+- Ideas with coordinates
+
+Items without usable coordinates appear in an unmapped count / list fallback; they never crash the map.
+
+### Destination geocoding
+
+Edge Function `geoapify-geocode-destination`:
+
+- Requires authenticated JWT + accepted trip membership
+- Accepts only a destination UUID (never trusts client city/country text)
+- Returns cached lat/lng when present
+- Otherwise forward-geocodes with private `GEOAPIFY_API_KEY`, then writes `latitude`, `longitude`, `geoapify_place_id`, `geocoded_at` via service role
+- Concurrent client requests for the same destination are deduped
+
+### Filters and route overview
+
+- Type filters: All / Destinations / Activities / Bookings / Ideas
+- Day filter: All days or a trip day (activities by day; bookings by date range; ideas only under All days unless “Include ideas”; destinations stay for context)
+- Optional straight-line **route overview** between geocoded destinations in display order — **not** a road route, distance, or ETA (no routing API)
+
+### External directions
+
+`src/utils/externalMaps.ts` opens Apple Maps / Google Maps / `geo:` intents via `Linking`. No directions API key. No device location permission.
+
+### Attribution
+
+Visible map attribution links: © OpenStreetMap contributors, © OpenMapTiles, Geoapify.
+
+### Environment
+
+```env
+EXPO_PUBLIC_GEOAPIFY_MAP_KEY=
+```
+
+### Migration + Edge Function + native rebuild
+
+```bash
+npx supabase db push
+# or paste supabase/migrations/20260802110000_destination_map_coordinates.sql
+
+npx supabase functions deploy geoapify-geocode-destination
+# GEOAPIFY_API_KEY must already be set as an Edge secret (same as autocomplete)
+
+# After adding @maplibre/maplibre-react-native:
+npx expo prebuild
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+### Manual test (Map)
+
+1. Set `EXPO_PUBLIC_GEOAPIFY_MAP_KEY` and rebuild the native app  
+2. Open a trip → **Map** tab  
+3. Confirm destination/activity/booking/idea markers from live data  
+4. Filter by type and day → Fit all  
+5. Tap marker → card → Directions / open itinerary, booking, or ideas (explicit IDs)  
+6. Toggle List mode; with map key removed, list fallback still works  
+7. Confirm destination geocode caches coordinates on first visit  
+
 ## Manual test plan
 
 ### Create trip
@@ -551,13 +631,17 @@ Colocated `*.styles.ts`, theme tokens only, no static inline styles, thin `app/`
 - Share-link Home cards are not listed (email-matched only); open the link to accept  
 - Expired invitations are marked lazily on read/mutation  
 - Preview mode continues to use mock invitations only  
-- **Create-trip date picker / validation UX** remains deferred (not modified in Phase 4B–4E)  
+- **Create-trip date picker / validation UX** remains deferred (not modified in Phase 5A)  
 - Itinerary reorder uses Move Up / Move Down only (no drag-and-drop)  
 - **No** live airline, hotel, train, or restaurant provider APIs  
 - **No** email inbox parsing, ticket/receipt uploads, or OCR  
 - **No** real payment transfers or banking integrations  
 - **No** automatic currency conversion (multi-currency balances stay separate)  
-- **No** visible maps, directions, push notifications, offline mode, AI recommendations, or monetization  
-- **No** social profiles or public feeds  
-- Place search quality depends on Geoapify / OpenStreetMap data  
-- Geoapify autocomplete requires the Edge Function + `GEOAPIFY_API_KEY` secret  
+- **No** turn-by-turn navigation, live traffic, user-location tracking, or background location  
+- **No** road-route calculation (destination line is visual overview only)  
+- **No** offline map downloads or nearby recommendations  
+- **No** push notifications, AI recommendations, monetization, or social profiles / public feeds  
+- MapLibre requires a **development build** (not Expo Go) after install  
+- Place search / geocoding quality depends on Geoapify / OpenStreetMap data  
+- Geoapify autocomplete + destination geocoding require Edge Function secrets (`GEOAPIFY_API_KEY`)  
+- Map tiles require a separate client key (`EXPO_PUBLIC_GEOAPIFY_MAP_KEY`)  

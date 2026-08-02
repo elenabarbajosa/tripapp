@@ -64,6 +64,8 @@ const midwestDestinations = [
     departureDate: "2026-09-15",
     latitude: 41.8781,
     longitude: -87.6298,
+    geoapifyPlaceId: null,
+    geocodedAt: null,
     displayOrder: 1,
   },
   {
@@ -76,6 +78,8 @@ const midwestDestinations = [
     departureDate: "2026-09-17",
     latitude: 43.0389,
     longitude: -87.9065,
+    geoapifyPlaceId: null,
+    geocodedAt: null,
     displayOrder: 2,
   },
   {
@@ -88,6 +92,8 @@ const midwestDestinations = [
     departureDate: "2026-09-20",
     latitude: 44.9778,
     longitude: -93.265,
+    geoapifyPlaceId: null,
+    geocodedAt: null,
     displayOrder: 3,
   },
   {
@@ -100,6 +106,8 @@ const midwestDestinations = [
     departureDate: "2026-09-21",
     latitude: 44.1636,
     longitude: -93.9994,
+    geoapifyPlaceId: null,
+    geocodedAt: null,
     displayOrder: 4,
   },
   {
@@ -112,6 +120,8 @@ const midwestDestinations = [
     departureDate: "2026-09-24",
     latitude: 39.7684,
     longitude: -86.1581,
+    geoapifyPlaceId: null,
+    geocodedAt: null,
     displayOrder: 5,
   },
 ];
@@ -150,6 +160,8 @@ export const mockPreviousTrips: TripSummary[] = [
         departureDate: "2025-05-05",
         latitude: 38.7223,
         longitude: -9.1393,
+        geoapifyPlaceId: null,
+        geocodedAt: null,
         displayOrder: 1,
       },
     ],

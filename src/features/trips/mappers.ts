@@ -43,6 +43,8 @@ export function mapTripDestination(row: TripDestinationRow): TripDestination {
     departureDate: row.departure_date,
     latitude: row.latitude,
     longitude: row.longitude,
+    geoapifyPlaceId: row.geoapify_place_id ?? null,
+    geocodedAt: row.geocoded_at ?? null,
     displayOrder: row.display_order,
   };
 }

@@ -23,6 +23,8 @@ const sampleRow: TripWithRelations = {
       departure_date: "2026-09-12",
       latitude: 38.7,
       longitude: -9.1,
+      geoapify_place_id: null,
+      geocoded_at: null,
       country_code: "PT",
       currency_code: "EUR",
       display_order: 1,

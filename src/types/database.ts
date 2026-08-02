@@ -161,6 +161,8 @@ export interface Database {
           departure_date: string;
           latitude: number | null;
           longitude: number | null;
+          geoapify_place_id: string | null;
+          geocoded_at: string | null;
           display_order: number;
           created_at: string;
           updated_at: string;
@@ -176,6 +178,8 @@ export interface Database {
           departure_date: string;
           latitude?: number | null;
           longitude?: number | null;
+          geoapify_place_id?: string | null;
+          geocoded_at?: string | null;
           display_order?: number;
           created_at?: string;
           updated_at?: string;
@@ -191,6 +195,8 @@ export interface Database {
           departure_date?: string;
           latitude?: number | null;
           longitude?: number | null;
+          geoapify_place_id?: string | null;
+          geocoded_at?: string | null;
           display_order?: number;
           created_at?: string;
           updated_at?: string;

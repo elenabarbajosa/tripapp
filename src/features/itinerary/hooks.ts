@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { tripMapKeys } from "@/features/tripMap/hooks";
 import { isValidUuid } from "@/utils/routeParams";
 import {
   createTripActivity,
@@ -28,6 +29,7 @@ async function invalidateTripItinerary(
 ) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: itineraryKeys.trip(tripId) }),
+    queryClient.invalidateQueries({ queryKey: tripMapKeys.trip(tripId) }),
     activityId
       ? queryClient.invalidateQueries({
           queryKey: itineraryKeys.activity(tripId, activityId),

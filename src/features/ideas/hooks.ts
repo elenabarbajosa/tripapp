@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { itineraryKeys } from "@/features/itinerary/hooks";
+import { tripMapKeys } from "@/features/tripMap/hooks";
 import { requireSupabaseClient } from "@/services/supabase";
 import { isValidUuid } from "@/utils/routeParams";
 import {
@@ -33,7 +34,10 @@ async function invalidateTripIdeas(
   queryClient: ReturnType<typeof useQueryClient>,
   tripId: string,
 ): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: [...ideaKeys.all, tripId] });
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: [...ideaKeys.all, tripId] }),
+    queryClient.invalidateQueries({ queryKey: tripMapKeys.trip(tripId) }),
+  ]);
 }
 
 export function useTripIdeasQuery(

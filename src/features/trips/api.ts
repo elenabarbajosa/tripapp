@@ -33,6 +33,8 @@ const TRIP_SELECT = `
     departure_date,
     latitude,
     longitude,
+    geoapify_place_id,
+    geocoded_at,
     display_order,
     created_at,
     updated_at

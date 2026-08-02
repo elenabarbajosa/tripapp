@@ -36,9 +36,14 @@ import { styles } from "./ItineraryScreen.styles";
 
 export function ItineraryScreen() {
   const router = useRouter();
-  const params = useGlobalSearchParams<{ tripId?: string | string[] }>();
+  const params = useGlobalSearchParams<{
+    tripId?: string | string[];
+    tripDayId?: string | string[];
+  }>();
   const tripId = resolveRouteParam(params.tripId);
+  const focusedDayId = resolveRouteParam(params.tripDayId);
   const hasValidTripId = isValidUuid(tripId);
+  const hasValidFocusedDayId = isValidUuid(focusedDayId);
 
   const { user, isAuthenticated, isInitializing } = useAuth();
   const { isPreviewActive } = usePreview();
@@ -59,10 +64,16 @@ export function ItineraryScreen() {
   const canDelete = !isPreviewActive && canDeleteActivity(role);
   const canReorder = !isPreviewActive && canReorderActivities(role);
 
-  const defaultDayId = useMemo(
-    () => defaultSelectedDayId(days, toISODate(new Date())),
-    [days],
-  );
+  const defaultDayId = useMemo(() => {
+    if (
+      hasValidFocusedDayId &&
+      focusedDayId &&
+      days.some((day) => day.id === focusedDayId)
+    ) {
+      return focusedDayId;
+    }
+    return defaultSelectedDayId(days, toISODate(new Date()));
+  }, [days, focusedDayId, hasValidFocusedDayId]);
   const [selectedDayIdOverride, setSelectedDayIdOverride] = useState<string | null>(null);
   const selectedDayId =
     selectedDayIdOverride && days.some((day) => day.id === selectedDayIdOverride)

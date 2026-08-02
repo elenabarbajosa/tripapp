@@ -40,6 +40,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     icon: "./assets/icon.png",
     scheme: "tripapp",
     userInterfaceStyle: "light",
+    // MapLibre RN v11 requires the New Architecture (typed as ExpoConfig cast).
+    newArchEnabled: true,
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.tripapp.app",
@@ -77,6 +79,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ],
       googleSignInPlugin,
       "expo-apple-authentication",
+      "@maplibre/maplibre-react-native",
     ],
     experiments: {
       typedRoutes: true,
@@ -89,5 +92,5 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         projectId: "replace-with-eas-project-id",
       },
     },
-  };
+  } as ExpoConfig;
 };

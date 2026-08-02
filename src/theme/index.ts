@@ -1,6 +1,9 @@
 export { colors } from "./colors";
 export type { ColorToken } from "./colors";
 
+export { mapColors } from "./mapColors";
+export type { MapColorToken } from "./mapColors";
+
 export { spacing } from "./spacing";
 export type { SpacingToken } from "./spacing";
 

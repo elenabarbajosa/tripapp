@@ -58,3 +58,18 @@ jest.mock("@expo/ui/community/datetime-picker", () => {
     },
   };
 });
+
+jest.mock("@maplibre/maplibre-react-native", () => {
+  const React = require("react");
+  const Mock = (name: string) =>
+    function MockComponent(props: { children?: React.ReactNode }) {
+      return React.createElement(name, props, props.children);
+    };
+  return {
+    Map: Mock("MapLibreMap"),
+    Camera: Mock("MapLibreCamera"),
+    GeoJSONSource: Mock("MapLibreGeoJSONSource"),
+    Layer: Mock("MapLibreLayer"),
+    Images: Mock("MapLibreImages"),
+  };
+});

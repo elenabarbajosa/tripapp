@@ -38,6 +38,8 @@ export interface TripDestination {
   departureDate: string;
   latitude: number | null;
   longitude: number | null;
+  geoapifyPlaceId: string | null;
+  geocodedAt: string | null;
   displayOrder: number;
 }
 
